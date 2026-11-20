@@ -2,6 +2,12 @@
 
 Hyprland + [end-4 dots-hyprland](https://github.com/end-4/dots-hyprland) (illogical-impulse, Quickshell), themed dark violet `#8703ff` and neon blue `#0059e7`.
 
+![Desktop: matrix rain wallpaper and clock](screenshots/desktop.jpg)
+
+| Terminal: fastfetch + cava | Sidebars |
+| --- | --- |
+| ![kitty with cava and fastfetch](screenshots/terminal.jpg) | ![left and right sidebars open](screenshots/sidebars.jpg) |
+
 Updated automatically from my machine. Made for **my** laptop (Lenovo LOQ, RTX 4050, fish shell), so read `restore.sh` before you run it.
 
 ## What's in it

@@ -262,6 +262,8 @@ Singleton {
             root.attemptInvokeAction(n.id + root.idOffset, action);
             return "ok";
         }
+        // Do Not Disturb (2026-11-20): `qs ipc -c ii call notifications dnd true|false`
+        function dnd(on: bool): void { root.silent = on; }
     }
 
     function triggerListChange() {
