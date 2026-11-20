@@ -44,7 +44,8 @@ hl.on("hyprland.start", function ()
     hl.exec_cmd("kdeconnectd")
 end)
 
+-- OFF 2026-11-20: PhoneBox moved to the Tab A7 (no tethering needed). Uncomment to bring it back.
 -- Phone plugged in -> USB tethering on, as a private link for KDE Connect only (see ~/.local/bin/phone-tether)
-hl.on("hyprland.start", function ()
-    hl.exec_cmd("$HOME/.local/bin/phone-tether")
-end)
+-- hl.on("hyprland.start", function ()
+--     hl.exec_cmd("$HOME/.local/bin/phone-tether")
+-- end)
