@@ -1,0 +1,9 @@
+[Unit]
+Description=Safety sweep for autofile (catches anything the watcher missed)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+
+[Install]
+WantedBy=timers.target

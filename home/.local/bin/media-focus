@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+# Show the app that's playing media (tapped from the cover art on the PhoneBox Home music card). (2026-11-19)
+# Player = the MPRIS one that's Playing, else the one the phone card shows (playerctl's first). Its D-Bus PID is
+# followed up to its Hyprland window, so browsers / Vesktop / mpv work too, not just Spotify. The window's
+# workspace is switched to; minimized (Super+U) windows are restored; no window at all -> MPRIS Raise / relaunch.
+import json, os, subprocess
+
+def out(*cmd):
+    return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
+
+def ppid(p):
+    try:
+        return int(open(f"/proc/{p}/stat").read().rsplit(")", 1)[1].split()[1])
+    except OSError:
+        return 0
+
+players = out("playerctl", "-l").split()
+if not players:
+    raise SystemExit
+player = next((p for p in players if out("playerctl", "-p", p, "status") == "Playing"), players[0])
+bus = "org.mpris.MediaPlayer2." + player
+pid = int((out("busctl", "--user", "call", "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+               "GetConnectionUnixProcessID", "s", bus).split() or ["u", "0"])[-1])
+
+win = {}
+for c in json.loads(out("hyprctl", "clients", "-j") or "[]"):
+    win.setdefault(c["pid"], c)
+p = pid
+while p > 1 and p not in win:
+    p = ppid(p)
+c = win.get(p)
+
+if c and c["workspace"]["name"] == "special:minimized":
+    subprocess.run([os.path.expanduser("~/.config/hypr/custom/scripts/minimize.sh"), "restore", c["address"]])
+elif c:
+    subprocess.run(["hyprctl", "dispatch", f'hl.dsp.focus({{ window = "address:{c["address"]}" }})'], capture_output=True)
+else:
+    prop = lambda name: out("busctl", "--user", "get-property", bus, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2", name)
+    if prop("CanRaise") == "b true":
+        subprocess.run(["busctl", "--user", "call", bus, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2", "Raise"])
+    else:
+        entry = prop("DesktopEntry").partition(" ")[2].strip('"')
+        if entry:
+            subprocess.Popen(["gtk-launch", entry], start_new_session=True)

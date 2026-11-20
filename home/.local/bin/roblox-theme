@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+# roblox-theme: violet theme for Roblox in Sober, through Sober's asset overlay.
+#   roblox-theme       rebuild the overlay from the Roblox version Sober has now (run again after Roblox updates)
+#   roblox-theme off   remove it (Roblox looks stock again)
+# - Cursors: your desktop cursor (Bibata-Violet) instead of Roblox's arrow
+# - UI images (icons, menus, loading screen, button sprites): Roblox blue -> violet #8703ff.
+#   Red / green / yellow are left alone, they mean things (muted, online, warnings).
+# Menu background colors are compiled into Roblox's code, so they can't be changed this way.
+# Restart Roblox (Sober) to see changes.
+import colorsys, glob, io, os, shutil, struct, sys, zipfile
+from PIL import Image
+
+SOBER = os.path.expanduser("~/.var/app/org.vinegarhq.Sober/data/sober")
+OVERLAY = os.path.join(SOBER, "asset_overlay")
+MARKER = os.path.join(OVERLAY, ".roblox-theme")   # only wipe the overlay if this script made it
+CURSORS = os.path.expanduser("~/.local/share/icons/Bibata-Violet/cursors")
+VIOLET_HUE = 272 / 360          # #8703ff
+BLUE = (175 / 360, 250 / 360)   # Roblox blues (#00a2ff, #335fff …) fall in here
+THEMED = ("assets/content/textures/ui/",
+          "assets/content/textures/Cursors/",
+          "assets/ExtraContent/LuaPackages/Packages/_Index/FoundationImages/")
+
+
+def clear():
+    if os.path.isdir(OVERLAY) and os.listdir(OVERLAY) and not os.path.exists(MARKER):
+        sys.exit(f"{OVERLAY} has files roblox-theme didn't make; not touching it.")
+    shutil.rmtree(OVERLAY, ignore_errors=True)
+    os.makedirs(OVERLAY)
+
+
+def violet(img):
+    """Blue pixels -> violet, keeping their brightness and transparency. Returns None if nothing was blue."""
+    img = img.convert("RGBA")
+    px = img.load()
+    changed = False
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b, a = px[x, y]
+            if a == 0:
+                continue
+            h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            if s > 0.25 and BLUE[0] <= h <= BLUE[1]:
+                r, g, b = colorsys.hsv_to_rgb(VIOLET_HUE, min(1, s * 1.05), v)
+                px[x, y] = (round(r * 255), round(g * 255), round(b * 255), a)
+                changed = True
+    return img if changed else None
+
+
+def xcursor(name, want=48):
+    """Largest frame <= want px from an Xcursor file, as (RGBA image, hotspot x, y)."""
+    data = open(os.path.join(CURSORS, name), "rb").read()
+    _, hsize, _, ntoc = struct.unpack_from("<4sIII", data, 0)
+    frames = []
+    for i in range(ntoc):
+        typ, size, pos = struct.unpack_from("<III", data, 16 + i * 12)
+        if typ == 0xFFFD0002:
+            frames.append((size, pos))
+    size, pos = max((f for f in frames if f[0] <= want), default=min(frames))
+    _, _, _, _, w, h, xhot, yhot, _ = struct.unpack_from("<9I", data, pos)
+    argb = data[pos + 36: pos + 36 + w * h * 4]
+    img = Image.frombuffer("RGBA", (w, h), argb, "raw", "BGRA", 0, 1)
+    return img.copy(), xhot, yhot
+
+
+def cursor_png(name):
+    """Roblox draws its 64x64 cursor image centered on the mouse, so put the hotspot at (32, 32)."""
+    img, xh, yh = xcursor(name)
+    canvas = Image.new("RGBA", (64, 64))
+    canvas.paste(img, (32 - xh, 32 - yh), img)
+    return canvas
+
+
+def save(img, rel):
+    out = os.path.join(OVERLAY, rel.removeprefix("assets/"))
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    img.save(out)
+
+
+def main():
+    if sys.argv[1:] == ["off"]:
+        clear()
+        print("Roblox theme removed. Restart Roblox to see the stock look.")
+        return
+    apks = glob.glob(os.path.join(SOBER, "packages/*/com.roblox.client/base.apk"))
+    if not apks:
+        sys.exit("Roblox isn't installed in Sober yet; open Sober once first.")
+    clear()
+    open(MARKER, "w").write("made by ~/.local/bin/roblox-theme\n")
+    tinted = 0
+    with zipfile.ZipFile(apks[0]) as apk:
+        for rel in apk.namelist():
+            if rel.endswith(".png") and rel.startswith(THEMED):
+                img = violet(Image.open(io.BytesIO(apk.read(rel))))
+                if img:
+                    save(img, rel)
+                    tinted += 1
+    kb = "assets/content/textures/Cursors/KeyboardMouse/"
+    for rel, name in ((kb + "ArrowCursor.png", "left_ptr"),
+                      (kb + "ArrowFarCursor.png", "left_ptr"),
+                      (kb + "IBeamCursor.png", "xterm")):
+        save(cursor_png(name), rel)
+    print(f"Roblox theme applied: {tinted} images turned violet + Bibata-Violet cursors.")
+    print("Restart Roblox (Sober) to see it. Undo with: roblox-theme off")
+
+
+main()

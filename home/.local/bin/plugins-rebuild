@@ -1,0 +1,28 @@
+#!/bin/bash
+# Rebuilds the Hyprland plugins against the installed Hyprland (needed after Hyprland updates),
+# installs them to ~/.local/share/hypr-plugins and loads them.
+#   hypr-cube  ~/Projects/Cloned/hypr-cube              (branch port-0.57, patched locally)
+#   hyprbars   ~/Projects/Cloned/hyprland-plugins/hyprbars (official; `git pull` first if it fails)
+set -e
+running=$(hyprctl version -j | jq -r .commit)
+installed=$(grep -o '"[0-9a-f]\{40\}"' /usr/include/hyprland/src/version.h | head -1 | tr -d '"')
+if [[ "$running" != "$installed" ]]; then
+    echo "The running Hyprland ($running) isn't the installed one ($installed)."
+    echo "Log out and back in first, then run plugins-rebuild again."
+    exit 1
+fi
+DEST=~/.local/share/hypr-plugins
+for src in ~/Projects/Cloned/hypr-cube ~/Projects/Cloned/hyprland-plugins/hyprbars; do
+    name=$(basename "$src"); [[ $name == hyprbars ]] || name=hypr-cube
+    echo "Building $name for Hyprland $(hyprctl version -j | jq -r .version)..."
+    (cd "$src" && make all >/tmp/$name-build.log 2>&1) || { echo "  $name build failed. Log: /tmp/$name-build.log"; continue; }
+    # Never write over a loaded .so (that crashed Hyprland once): copy under a temp name and
+    # rename, so the loaded file keeps its own inode. The new build loads at the next login.
+    cp "$src/$name.so" "$DEST/.$name.so.new" && mv -f "$DEST/.$name.so.new" "$DEST/$name.so"
+done
+if hyprctl plugin list | grep -q "^Plugin"; then
+    echo "Installed. Log out and back in to use the new builds (live reloading plugins is unsafe)."
+else
+    ~/.config/hypr/custom/scripts/plugins-load.sh
+    hyprctl plugin list | grep '^Plugin'
+fi

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Hidamari
+Exec=/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=hidamari io.github.jeffshee.Hidamari
+Icon=/var/lib/flatpak/exports/share/icons/hicolor/scalable/apps/io.github.jeffshee.Hidamari.svg
+Terminal=false
+Type=Application
+Categories=GTK;Utility;
+StartupNotify=true
+X-Flatpak=io.github.jeffshee.Hidamari

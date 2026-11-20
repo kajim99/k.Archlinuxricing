@@ -1,0 +1,9 @@
+[Unit]
+Description=Auto-file new files into category dirs
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/autofile
+# keep "Mute 5 min" popups alive after the sort finishes
+KillMode=process

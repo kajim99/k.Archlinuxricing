@@ -1,0 +1,10 @@
+#!/bin/bash
+# Moves Liquid Lyrics exports from ~/Downloads to ~/Music/spotify-lyrics
+src="$HOME/Downloads"
+dest="$HOME/Music/spotify-lyrics"
+mkdir -p "$dest"
+for f in "$src"/*.json; do
+    [ -f "$f" ] || continue
+    python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if isinstance(d,dict) and {"lyrics","draft","updatedAt"} <= d.keys() else 1)' "$f" 2>/dev/null || continue
+    mv --backup=numbered "$f" "$dest/"
+done

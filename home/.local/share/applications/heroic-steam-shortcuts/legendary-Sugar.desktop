@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Rocket League®
+Exec="/opt/Heroic/heroic" --no-gui --no-sandbox "heroic://launch?appName=Sugar&runner=legendary"
+Path=/opt/Heroic
+Icon=/home/kareem/.config/heroic/icons/Sugar.jpg
+Terminal=false
+NoDisplay=true

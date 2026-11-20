@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+"""audio-panel — a small, simple sound settings popup (2026-11-08).
+
+Outputs (click to switch, moves playing apps too), output volume + mute,
+microphone picker + mic volume + mute, and a volume slider per playing app.
+Opened/closed with Super+Ctrl+V (custom/keybinds.lua); Esc or clicking away closes it.
+Talks to PipeWire through `pactl`, refreshes live from `pactl subscribe`.
+Colors: VioletNeon (violet #8703ff, blue #0059e7, bg #140f24, boxes #2a0f4d).
+"""
+import json
+import subprocess
+import sys
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+
+APP_ID = "dev.kareem.AudioPanel"
+MAX_VOLUME = 150
+
+CSS = """
+window { background-color: rgba(20, 15, 36, 0.62); border: 1px solid rgba(135, 3, 255, 0.55); border-radius: 14px; }
+.title { font-family: "Space Grotesk"; font-size: 17px; font-weight: 700; color: #e0dcff; }
+.heading { font-family: "Space Grotesk"; font-size: 12px; font-weight: 700; color: #a89cc8; letter-spacing: 1px; margin-top: 10px; }
+.card { background-color: #2a0f4d; border-radius: 10px; padding: 10px 12px; }
+.choice { background: #1c1533; color: #e0dcff; border: 1px solid #3a2a60; border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+.choice:hover { border-color: #8703ff; }
+.choice.active { background: linear-gradient(90deg, #8703ff 0%, #8703ff 60%, #0059e7 100%); border-color: #a020ff; color: #ffffff; font-weight: 700; }
+.choice:disabled { color: #6a5a8a; }
+.name { color: #e0dcff; font-size: 13px; }
+.pct { color: #a89cc8; font-size: 12px; min-width: 44px; }
+.empty { color: #6a5a8a; font-size: 12px; }
+scale trough { background-color: #140f24; min-height: 6px; border-radius: 3px; }
+scale highlight { background: linear-gradient(90deg, #8703ff 0%, #8703ff 60%, #0059e7 100%); border-radius: 3px; }
+scale slider { background: #ffffff; min-width: 16px; min-height: 16px; border-radius: 8px; box-shadow: 0 0 8px #a020ff; }
+.mute { background: #1c1533; color: #e0dcff; border-radius: 8px; padding: 2px 8px; border: 1px solid #3a2a60; }
+.mute:checked { background: #ff2a6d; color: #ffffff; border-color: #ff2a6d; }
+"""
+
+
+def pactl(*args):
+    return subprocess.run(["pactl", *args], capture_output=True, text=True).stdout
+
+
+def pactl_json(kind):
+    try:
+        return json.loads(pactl("-f", "json", "list", kind) or "[]")
+    except json.JSONDecodeError:
+        return []
+
+
+def percent(entry):
+    channels = entry.get("volume", {}).values()
+    values = [int(c["value_percent"].rstrip("%")) for c in channels if "value_percent" in c]
+    return max(values) if values else 0
+
+
+class Panel(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="Sound")
+        self.set_default_size(440, -1)
+        self.set_resizable(False)
+        self.dragging = set()
+        self.layout_key = None
+        self.refresh_pending = False
+
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", lambda _c, key, *_: key == Gdk.KEY_Escape and self.close())
+        self.add_controller(keys)
+        # Clicking anywhere else (focus leaves the popup) closes it.
+        self.connect("notify::is-active", lambda *_: GLib.timeout_add(150, self.close_if_unfocused))
+
+        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(self.box, f"set_margin_{side}")(16)
+        self.set_child(self.box)
+
+        self.refresh()
+        self.watch()
+
+    def close_if_unfocused(self):
+        if not self.is_active():
+            self.close()
+        return False
+
+    # ---------- live updates ----------
+    def watch(self):
+        self.proc = Gio.Subprocess.new(["pactl", "subscribe"], Gio.SubprocessFlags.STDOUT_PIPE)
+        self.stream = Gio.DataInputStream.new(self.proc.get_stdout_pipe())
+        self.stream.read_line_async(GLib.PRIORITY_DEFAULT, None, self.on_event)
+        self.connect("close-request", lambda *_: self.proc.force_exit())
+
+    def on_event(self, stream, result):
+        try:
+            line, _ = stream.read_line_finish_utf8(result)
+        except GLib.Error:
+            return
+        if line is None:
+            return
+        if not self.refresh_pending and any(w in line for w in ("sink", "source", "server", "card")):
+            self.refresh_pending = True
+            GLib.timeout_add(120, self.refresh)
+        stream.read_line_async(GLib.PRIORITY_DEFAULT, None, self.on_event)
+
+    # ---------- data ----------
+    def read_state(self):
+        info = json.loads(pactl("-f", "json", "info") or "{}")
+        sinks = pactl_json("sinks")
+        sources = [s for s in pactl_json("sources") if s.get("properties", {}).get("device.class") != "monitor"]
+        apps = pactl_json("sink-inputs")
+        return info, sinks, sources, apps
+
+    @staticmethod
+    def outputs(sinks):
+        """One choice per output port (Headphones, Speakers), or per device when it has one port."""
+        choices = []
+        for s in sinks:
+            ports = s.get("ports") or []
+            if len(ports) > 1:
+                for p in ports:
+                    choices.append((s, p))
+            else:
+                choices.append((s, ports[0] if ports else None))
+        return choices
+
+    @staticmethod
+    def label(device, port):
+        desc = device.get("description", device["name"])
+        if port and port.get("description") and "Built-in" in desc:
+            return port["description"]
+        if port and port.get("description") and len(device.get("ports", [])) > 1:
+            return f"{port['description']} · {desc}"
+        return desc.replace(" Analog Stereo", "").replace(" Digital Stereo", "")
+
+    def refresh(self):
+        self.refresh_pending = False
+        info, sinks, sources, apps = self.read_state()
+        key = (
+            tuple((s["name"], s.get("active_port"), tuple((p["name"], p.get("availability")) for p in s.get("ports", []))) for s in sinks),
+            tuple((s["name"], s.get("active_port")) for s in sources),
+            tuple(a["index"] for a in apps),
+            info.get("default_sink_name"), info.get("default_source_name"),
+        )
+        if key != self.layout_key:
+            self.layout_key = key
+            self.build(info, sinks, sources, apps)
+        else:
+            self.update_values(info, sinks, sources, apps)
+        return False
+
+    # ---------- UI ----------
+    def build(self, info, sinks, sources, apps):
+        while (child := self.box.get_first_child()) is not None:
+            self.box.remove(child)
+        self.sliders = {}
+
+        title = Gtk.Label(label="Sound", xalign=0)
+        title.add_css_class("title")
+        self.box.append(title)
+
+        default_sink = info.get("default_sink_name")
+        default_source = info.get("default_source_name")
+
+        self.heading("OUTPUT")
+        grid = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=2, homogeneous=True,
+                           column_spacing=6, row_spacing=6)
+        for sink, port in self.outputs(sinks):
+            active = sink["name"] == default_sink and (port is None or port["name"] == sink.get("active_port"))
+            button = self.choice(self.label(sink, port), active, lambda _b, s=sink, p=port: self.pick_output(s, p))
+            if port and port.get("availability") == "not available" and not active:
+                button.set_sensitive(False)
+                button.set_tooltip_text("Not plugged in")
+            grid.append(button)
+        if not sinks:
+            grid.append(self.empty("No outputs found"))
+        self.box.append(grid)
+        sink = next((s for s in sinks if s["name"] == default_sink), None)
+        if sink:
+            self.box.append(self.slider_card("Volume", sink, "sink"))
+
+        self.heading("MICROPHONE")
+        mics = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=2, homogeneous=True,
+                           column_spacing=6, row_spacing=6)
+        for src in sources:
+            mics.append(self.choice(self.label(src, None), src["name"] == default_source,
+                                    lambda _b, s=src: self.pick_mic(s)))
+        if not sources:
+            mics.append(self.empty("No microphones found"))
+        self.box.append(mics)
+        mic = next((s for s in sources if s["name"] == default_source), None)
+        if mic:
+            self.box.append(self.slider_card("Mic volume", mic, "source"))
+
+        self.heading("APPS")
+        if not apps:
+            self.box.append(self.empty("Nothing is playing"))
+        for app in apps:
+            props = app.get("properties", {})
+            name = props.get("application.name") or props.get("media.name") or "App"
+            self.box.append(self.slider_card(name, app, "sink-input"))
+
+    def heading(self, text):
+        label = Gtk.Label(label=text, xalign=0)
+        label.add_css_class("heading")
+        self.box.append(label)
+
+    def empty(self, text):
+        label = Gtk.Label(label=text, xalign=0)
+        label.add_css_class("empty")
+        return label
+
+    def choice(self, text, active, on_click):
+        button = Gtk.Button(label=text)
+        button.add_css_class("choice")
+        if active:
+            button.add_css_class("active")
+        button.connect("clicked", on_click)
+        return button
+
+    def slider_card(self, name, entry, kind):
+        target = str(entry["index"]) if kind == "sink-input" else entry["name"]
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        card.add_css_class("card")
+        top = Gtk.Box(spacing=8)
+        label = Gtk.Label(label=name, xalign=0, hexpand=True, ellipsize=3)
+        label.add_css_class("name")
+        mute = Gtk.ToggleButton(label="Mute", active=entry.get("mute", False))
+        mute.add_css_class("mute")
+        mute.connect("toggled", lambda b: pactl(f"set-{kind}-mute", target, "1" if b.get_active() else "0"))
+        top.append(label)
+        top.append(mute)
+
+        row = Gtk.Box(spacing=8)
+        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, MAX_VOLUME, 1)
+        scale.set_hexpand(True)
+        scale.set_draw_value(False)
+        scale.add_mark(100, Gtk.PositionType.BOTTOM, None)
+        scale.set_value(percent(entry))
+        pct = Gtk.Label(label=f"{percent(entry)}%", xalign=1)
+        pct.add_css_class("pct")
+
+        def changed(s):
+            value = int(s.get_value())
+            pct.set_label(f"{value}%")
+            pactl(f"set-{kind}-volume", target, f"{value}%")
+
+        scale.connect("value-changed", changed)
+        drag = Gtk.GestureClick()
+        drag.connect("pressed", lambda *_: self.dragging.add(target))
+        drag.connect("released", lambda *_: self.dragging.discard(target))
+        scale.add_controller(drag)
+        row.append(scale)
+        row.append(pct)
+
+        card.append(top)
+        card.append(row)
+        self.sliders[(kind, target)] = (scale, pct, mute, changed)
+        return card
+
+    def update_values(self, info, sinks, sources, apps):
+        entries = [("sink", s["name"], s) for s in sinks] + [("source", s["name"], s) for s in sources] + \
+                  [("sink-input", str(a["index"]), a) for a in apps]
+        for kind, target, entry in entries:
+            widgets = self.sliders.get((kind, target))
+            if not widgets or target in self.dragging:
+                continue
+            scale, pct, mute, changed = widgets
+            value = percent(entry)
+            if int(scale.get_value()) != value:
+                scale.handler_block_by_func(changed)
+                scale.set_value(value)
+                scale.handler_unblock_by_func(changed)
+                pct.set_label(f"{value}%")
+            if mute.get_active() != entry.get("mute", False):
+                mute.set_active(entry.get("mute", False))
+
+    # ---------- actions ----------
+    def pick_output(self, sink, port):
+        if port:
+            pactl("set-sink-port", sink["name"], port["name"])
+        pactl("set-default-sink", sink["name"])
+        for app in pactl_json("sink-inputs"):
+            pactl("move-sink-input", str(app["index"]), sink["name"])
+
+    def pick_mic(self, source):
+        pactl("set-default-source", source["name"])
+        for rec in pactl_json("source-outputs"):
+            pactl("move-source-output", str(rec["index"]), source["name"])
+
+
+class App(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id=APP_ID)
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        css = Gtk.CssProvider()
+        css.load_from_string(CSS)
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css,
+                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    def do_activate(self):
+        # Second launch (pressing the key again) closes the open panel: a toggle.
+        if self.get_windows():
+            for w in self.get_windows():
+                w.close()
+            return
+        Panel(self).present()
+
+
+if __name__ == "__main__":
+    sys.exit(App().run(sys.argv))

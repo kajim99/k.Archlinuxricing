@@ -1,0 +1,358 @@
+From b7dffb6dfa85161778ac7bb694cc1a03f6051338 Mon Sep 17 00:00:00 2001
+From: Kareem <264479377+kareemnubani4-beep@users.noreply.github.com>
+Date: Thu, 5 Nov 2026 15:40:26 +0000
+Subject: [PATCH 1/2] Port to Hyprland 0.57 and add rolling cube for any
+ workspace count
+
+- 0.57 renderer: render context (draw/pass/stage events), HLWorkspace header,
+  numbered workspace ids, visible()/setVisible()
+- Rolling cube: faces filled relative to the starting workspace, wrapping
+  within 1..count, count read from the wp-count runtime file
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/cube/state.cpp   | 21 ++++++++++++++++++---
+ src/cube/state.hpp   |  8 ++++++--
+ src/hypr/capture.cpp | 43 +++++++++++++++++++++----------------------
+ src/hypr/pass.cpp    | 15 ++++++++-------
+ src/hypr/pass.hpp    |  9 +++++----
+ src/hypr/plugin.cpp  | 34 +++++++++++++++++++++++++++++++---
+ 6 files changed, 89 insertions(+), 41 deletions(-)
+
+diff --git a/src/cube/state.cpp b/src/cube/state.cpp
+index 9a1039d..1b81c26 100644
+--- a/src/cube/state.cpp
++++ b/src/cube/state.cpp
+@@ -31,14 +31,29 @@ Clamped validate(Config raw) {
+     return out;
+ }
+ 
++static int g_originWs = 1, g_originFace = 0, g_originFaces = 4, g_wsCount = 1;
++
+ int faceOfWorkspace(int workspaceId, int faces) {
+-    if (workspaceId < 1 || workspaceId > faces)
++    if (workspaceId < 1 || faces < 1)
+         return -1;
+-    return workspaceId - 1;
++    return (workspaceId - 1) % faces;
++}
++
++void setOrigin(int originWorkspace, int faces, int workspaceCount) {
++    g_originWs    = originWorkspace < 1 ? 1 : originWorkspace;
++    g_originFaces = faces < 1 ? 1 : faces;
++    g_originFace  = faceOfWorkspace(g_originWs, g_originFaces);
++    g_wsCount     = workspaceCount < g_originWs ? g_originWs : workspaceCount;
+ }
+ 
+ int workspaceOfFace(int face) {
+-    return face + 1;
++    // Offset from the origin face, centred: with 4 faces that is 0, +1, +2 (back), -1.
++    int d = normalizeFace(face - g_originFace, g_originFaces);
++    if (d > g_originFaces / 2)
++        d -= g_originFaces;
++    // Wrap within 1..count, so next on the last workspace lands on 1 and prev on 1 on the last.
++    const int z = ((g_originWs - 1 + d) % g_wsCount + g_wsCount) % g_wsCount;
++    return z + 1;
+ }
+ 
+ int normalizeFace(int face, int faces) {
+diff --git a/src/cube/state.hpp b/src/cube/state.hpp
+index 317e9ec..d929cf3 100644
+--- a/src/cube/state.hpp
++++ b/src/cube/state.hpp
+@@ -19,8 +19,12 @@ struct Clamped {
+ 
+ Clamped validate(Config raw);
+ 
+-int faceOfWorkspace(int workspaceId, int faces);   // -1 if workspaceId is not a face
+-int workspaceOfFace(int face);
++// Rolling cube (kareem, 2026-11-05): every numbered workspace maps onto a face by
++// (id-1) % faces, and faces are filled relative to the workspace a turn starts from, so
++// any number of workspaces works. setOrigin() must run before a session starts.
++int faceOfWorkspace(int workspaceId, int faces);   // -1 if workspaceId is not a numbered workspace
++int workspaceOfFace(int face);                     // relative to the origin, wrapping within 1..count
++void setOrigin(int originWorkspace, int faces, int workspaceCount);
+ int normalizeFace(int face, int faces);
+ 
+ enum class Phase { Idle, Rotating, Dragging, Settling };
+diff --git a/src/hypr/capture.cpp b/src/hypr/capture.cpp
+index 2b03c02..8820ce6 100644
+--- a/src/hypr/capture.cpp
++++ b/src/hypr/capture.cpp
+@@ -1,6 +1,8 @@
+ #include "capture.hpp"
+ #include <hyprland/src/state/WorkspaceState.hpp>
+-#include <hyprland/src/desktop/Workspace.hpp>
++#include <hyprland/src/workspace/HLWorkspace.hpp>
++#include <hyprland/src/output/Monitor.hpp>
++#include <hyprland/src/render/Context.hpp>
+ #include <hyprland/src/render/pass/ClearPassElement.hpp>
+ #include <hyprland/src/helpers/time/Time.hpp>
+ 
+@@ -20,7 +22,7 @@ template <typename Tag, typename Tag::type Member> struct Steal {
+ };
+ 
+ struct RenderWorkspaceTag {
+-    using type = void (Render::IHyprRenderer::*)(PHLMONITOR, PHLWORKSPACE, const Time::steady_tp&, const CBox&);
++    using type = void (Render::IHyprRenderer::*)(Render::CRenderContext&, PHLMONITOR, PHLWORKSPACE, const Time::steady_tp&, const CBox&);
+     friend type stolen(RenderWorkspaceTag);
+ };
+ template struct Steal<RenderWorkspaceTag, &Render::IHyprRenderer::renderWorkspace>;
+@@ -39,7 +41,7 @@ FaceTexture captureWorkspace(PHLMONITOR mon, int workspaceId, bool sync) {
+     // null branch that draws the background and every layer surface but no windows, which
+     // is exactly what an empty desktop looks like. Skipping instead left a hole in the cube
+     // through which the inside of the far faces was visible.
+-    auto ws = State::workspaceState()->query().id(workspaceId).run();
++    auto ws = State::workspaceState()->query().numbered(::Workspace::SWorkspaceNumberedID{(::Workspace::WorkspaceIDContainer)workspaceId}).run();
+     if (ws && ws->m_monitor != mon)
+         ws.reset();
+ 
+@@ -53,8 +55,7 @@ FaceTexture captureWorkspace(PHLMONITOR mon, int workspaceId, bool sync) {
+ 
+     const auto     savedWorkspace   = mon->m_activeWorkspace;
+     const auto     savedSpecial     = mon->m_activeSpecialWorkspace;
+-    const bool     savedFeedback    = g_pHyprRenderer->m_bBlockSurfaceFeedback;
+-    const bool     savedVisible     = ws ? ws->m_visible : false;
++    const bool     savedVisible     = ws ? ws->visible() : false;
+     const bool     savedForceRend   = ws ? ws->m_forceRendering : false;
+     const float    savedAlphaVal    = ws ? ws->m_alpha->value() : 0.F;
+     const float    savedAlphaGoal   = ws ? ws->m_alpha->goal() : 0.F;
+@@ -69,22 +70,22 @@ FaceTexture captureWorkspace(PHLMONITOR mon, int workspaceId, bool sync) {
+     // alongside the target's — the real one wins since it's drawn after. Hide it (and any
+     // active special workspace) for the duration, unless it's the same workspace we're
+     // capturing.
+-    const bool sourceHadVisible  = savedWorkspace && savedWorkspace != ws && savedWorkspace->m_visible;
+-    const bool specialHadVisible = savedSpecial && savedSpecial != ws && savedSpecial->m_visible;
++    const bool sourceHadVisible  = savedWorkspace && savedWorkspace != ws && savedWorkspace->visible();
++    const bool specialHadVisible = savedSpecial && savedSpecial != ws && savedSpecial->visible();
+     if (sourceHadVisible)
+-        savedWorkspace->m_visible = false;
++        savedWorkspace->setVisible(false);
+     if (specialHadVisible)
+-        savedSpecial->m_visible = false;
+-
+-    g_pHyprRenderer->m_bBlockSurfaceFeedback = true;
++        savedSpecial->setVisible(false);
+ 
+     // Follows IHyprRenderer::makeSnapshotFB's own shape exactly (Renderer.cpp): the public
+     // beginFullFakeRender/draw(clear)/startRenderPass sequence, not raw GL calls, is what
+     // this renderer expects around a fake render into an arbitrary framebuffer.
+     g_pHyprRenderer->beginFullFakeRender(mon, fakeDamage, out.fb);
+-    g_pHyprRenderer->m_bRenderingSnapshot = true;
+-    g_pHyprRenderer->draw(CClearPassElement::SClearData{CHyprColor(0, 0, 0, 1)});
+-    g_pHyprRenderer->startRenderPass();
++    auto& ctx = g_pHyprRenderer->context();
++    ctx.m_blockSurfaceFeedback = true;
++    ctx.m_renderingSnapshot    = true;
++    g_pHyprRenderer->draw(ctx, CClearPassElement::SClearData{CHyprColor(0, 0, 0, 1)});
++    g_pHyprRenderer->startRenderPass(ctx);
+ 
+     // shouldRenderWindow gates on the workspace being visible/forced/at full alpha; a
+     // workspace that isn't the one currently shown otherwise sits at its faded-out
+@@ -93,13 +94,13 @@ FaceTexture captureWorkspace(PHLMONITOR mon, int workspaceId, bool sync) {
+     // that too, its windows render fully opaque but entirely off the edge of the capture.
+     mon->m_activeWorkspace = ws;
+     if (ws) {
+-        ws->m_visible        = true;
++        ws->setVisible(true);
+         ws->m_forceRendering = true;
+         ws->m_alpha->setValueAndWarp(1.F);
+         ws->m_renderOffset->setValueAndWarp(Vector2D{0, 0});
+     }
+-    (g_pHyprRenderer.get()->*stolen(RenderWorkspaceTag{}))(mon, ws, Time::steadyNow(), monbox);
+-    g_pHyprRenderer->m_renderData.blockScreenShader = true;
++    (g_pHyprRenderer.get()->*stolen(RenderWorkspaceTag{}))(ctx, mon, ws, Time::steadyNow(), monbox);
++    ctx.m_data.blockScreenShader = true;
+     g_pHyprRenderer->endRender();
+ 
+     // This VM's GPU path is guest GL -> virgl -> host ANGLE -> Metal; without a hard sync
+@@ -111,21 +112,19 @@ FaceTexture captureWorkspace(PHLMONITOR mon, int workspaceId, bool sync) {
+     if (sync)
+         glFinish();
+ 
+-    g_pHyprRenderer->m_bRenderingSnapshot = false;
+     mon->m_activeWorkspace                = savedWorkspace;
+     if (ws) {
+-        ws->m_visible        = savedVisible;
++        ws->setVisible(savedVisible);
+         ws->m_forceRendering = savedForceRend;
+         ws->m_alpha->setValueAndWarp(savedAlphaVal);
+         *ws->m_alpha = savedAlphaGoal;
+         ws->m_renderOffset->setValueAndWarp(savedOffsetVal);
+         *ws->m_renderOffset = savedOffsetGoal;
+     }
+-    g_pHyprRenderer->m_bBlockSurfaceFeedback = savedFeedback;
+     if (sourceHadVisible)
+-        savedWorkspace->m_visible = true;
++        savedWorkspace->setVisible(true);
+     if (specialHadVisible)
+-        savedSpecial->m_visible = true;
++        savedSpecial->setVisible(true);
+ 
+     out.tex = out.fb->getTexture();
+     return out;
+diff --git a/src/hypr/pass.cpp b/src/hypr/pass.cpp
+index e768777..a86f8ad 100644
+--- a/src/hypr/pass.cpp
++++ b/src/hypr/pass.cpp
+@@ -5,7 +5,8 @@
+ #include <hyprland/src/config/shared/actions/ConfigActions.hpp>
+ #include <hyprland/src/helpers/time/Time.hpp>
+ #include <hyprland/src/desktop/state/FocusState.hpp>
+-#include <hyprland/src/desktop/Workspace.hpp>
++#include <hyprland/src/workspace/HLWorkspace.hpp>
++#include <hyprland/src/output/Monitor.hpp>
+ #include <chrono>
+ #include <cmath>
+ 
+@@ -90,7 +91,7 @@ static void flushPendingCommit() {
+     g_pendingTeardown = true;
+ }
+ 
+-std::vector<UP<IPassElement>> CubePassElement::draw() {
++std::vector<UP<IPassElement>> CubePassElement::draw(Render::CRenderContext&) {
+     if (!g_session)
+         return {};
+     auto& s = *g_session;
+@@ -164,8 +165,8 @@ void startSession(PHLMONITOR mon, const cube::Config& cfg) {
+     for (int i = 0; i < 4; ++i)
+         g_session->background[i] = g_background[i];
+ 
+-    g_stageListener = Event::bus()->m_events.render.stage.listen([](eRenderStage stage) {
+-        if (stage != RENDER_LAST_MOMENT)
++    g_stageListener = Event::bus()->m_events.render.stage.listen([](const Event::SRenderStageEvent& ev) {
++        if (ev.stage != RENDER_LAST_MOMENT || !ev.context)
+             return;
+ 
+         // Every monitor fires this stage callback on its own render cycle, but g_pendingEnd/
+@@ -177,7 +178,7 @@ void startSession(PHLMONITOR mon, const cube::Config& cfg) {
+         // PHLMONITORREF against g_session->monitor's shared PHLMONITOR. CWeakPointer defines
+         // operator== against a CSharedPointer but operator!= only against nullptr_t, so negate
+         // the equality explicitly rather than reaching for !=.
+-        if (!g_session || !(g_pHyprRenderer->m_renderData.pMonitor == g_session->monitor))
++        if (!g_session || !(ev.monitor == g_session->monitor))
+             return;
+ 
+         if (g_pendingTeardown) {
+@@ -190,13 +191,13 @@ void startSession(PHLMONITOR mon, const cube::Config& cfg) {
+         // afterward; no need to repeat it.
+         flushPendingCommit();
+ 
+-        g_pHyprRenderer->m_renderPass.add(makeUnique<CubePassElement>());
++        Render::IHyprRenderer::addPassElement(ev.context->get(), makeUnique<CubePassElement>());
+     });
+ }
+ 
+ void endSession() {
+     g_stageListener.reset();
+-    g_pHyprRenderer->m_renderPass.removeAllOfType("CubePassElement");
++    g_pHyprRenderer->context().m_pass.removeAllOfType("CubePassElement");
+     if (g_rendererReady) {
+         g_renderer.destroy();
+         g_rendererReady = false;
+diff --git a/src/hypr/pass.hpp b/src/hypr/pass.hpp
+index bf5c17e..da67cd4 100644
+--- a/src/hypr/pass.hpp
++++ b/src/hypr/pass.hpp
+@@ -3,6 +3,7 @@
+ #include "../cube/math.hpp"
+ #include "../cube/state.hpp"
+ #include <hyprland/src/render/pass/PassElement.hpp>
++#include <hyprland/src/render/Context.hpp>
+ #include <hyprland/src/config/shared/actions/ConfigActions.hpp>
+ #include <optional>
+ #include <vector>
+@@ -11,12 +12,12 @@ namespace hypr {
+ 
+ class CubePassElement : public IPassElement {
+   public:
+-    std::vector<UP<IPassElement>> draw() override;
+-    bool                          needsLiveBlur() override { return false; }
+-    bool                          needsPrecomputeBlur() override { return false; }
++    std::vector<UP<IPassElement>> draw(Render::CRenderContext& ctx) override;
++    bool                          needsLiveBlur(Render::CRenderContext&) override { return false; }
++    bool                          needsPrecomputeBlur(Render::CRenderContext&) override { return false; }
+     ePassElementType              type() override { return EK_CUSTOM; }
+     const char*                   passName() override { return "CubePassElement"; }
+-    bool                          disableSimplification() override { return true; }
++    bool                          disableSimplification(Render::CRenderContext&) override { return true; }
+ };
+ 
+ struct CubeSession {
+diff --git a/src/hypr/plugin.cpp b/src/hypr/plugin.cpp
+index 953fed4..9b49680 100644
+--- a/src/hypr/plugin.cpp
++++ b/src/hypr/plugin.cpp
+@@ -14,6 +14,32 @@
+ #include <hyprland/src/config/values/types/ColorValue.hpp>
+ #include <hyprland/src/event/EventBus.hpp>
+ #include <hyprland/src/helpers/time/Time.hpp>
++#include <hyprland/src/workspace/HLWorkspace.hpp>
++#include <hyprland/src/output/Monitor.hpp>
++
++// Workspaces in play: the `wp` count (fish, base 5) or the active one, if higher.
++static int workspaceCount(int active) {
++    int count = 5;
++    const char* run = getenv("XDG_RUNTIME_DIR");
++    const char* sig = getenv("HYPRLAND_INSTANCE_SIGNATURE");
++    if (run && sig) {
++        if (FILE* f = fopen((std::string(run) + "/hypr/" + sig + "/wp-count").c_str(), "r")) {
++            int n = 0;
++            if (fscanf(f, "%d", &n) == 1 && n > 0)
++                count = n;
++            fclose(f);
++        }
++    }
++    return active > count ? active : count;
++}
++
++// 0.57: workspace ids are a variant; -1 for special/none (not a cube face).
++static int activeNumberedID(const PHLMONITOR& mon) {
++    if (!mon->m_activeWorkspace)
++        return -1;
++    const auto id = mon->m_activeWorkspace->numberedID();
++    return id ? (int)*id : -1;
++}
+ 
+ #include <chrono>
+ #include <cstdint>
+@@ -129,7 +155,7 @@ static void cubeWorkspace(const std::string& arg) {
+         return;
+ 
+     const int dir  = (arg == "prev") ? -1 : +1;
+-    const int face = cube::faceOfWorkspace(mon->activeWorkspaceID(), g_cfg.faces);
++    const int face = cube::faceOfWorkspace(activeNumberedID(mon), g_cfg.faces);
+     if (g_session)
+         return; // already animating: ignored, the in-flight rotation completes untouched.
+ 
+@@ -143,6 +169,7 @@ static void cubeWorkspace(const std::string& arg) {
+     // Captures every face, not just the two the turn moves between: at any angle between
+     // them the front pair does not cover the viewport, and the faces behind are visible
+     // through the gap. Capturing only two left that gap empty.
++    cube::setOrigin(activeNumberedID(mon), g_cfg.faces, workspaceCount(activeNumberedID(mon)));
+     startSession(mon, g_cfg);
+     g_session->state.startRotate(face, dir, nowMs());
+ }
+@@ -161,10 +188,11 @@ static void cubeDrag() {
+     if (!mon || g_session)
+         return; // already animating: ignored, same as cubeWorkspace.
+ 
+-    const int face = cube::faceOfWorkspace(mon->activeWorkspaceID(), g_cfg.faces);
++    const int face = cube::faceOfWorkspace(activeNumberedID(mon), g_cfg.faces);
+     if (face < 0)
+         return; // not on a cube face: nothing to spin
+ 
++    cube::setOrigin(activeNumberedID(mon), g_cfg.faces, workspaceCount(activeNumberedID(mon)));
+     startSession(mon, g_cfg);
+     g_session->state.startDrag(face, nowMs());
+     beginDragGrab();
+@@ -306,5 +334,5 @@ APICALL EXPORT void PLUGIN_EXIT() {
+     // endSession() already does this, but a dangling pass element after unload crashes the
+     // compositor and this call costs nothing, so it is repeated here as a last line of defense
+     // against any future path that ends a session without going through endSession().
+-    g_pHyprRenderer->m_renderPass.removeAllOfType("CubePassElement");
++    g_pHyprRenderer->context().m_pass.removeAllOfType("CubePassElement");
+ }
+-- 
+2.56.0
+

@@ -1,0 +1,85 @@
+From e29b2073372fed01b4bda20ea83613e99b1890f1 Mon Sep 17 00:00:00 2001
+From: Kareem <264479377+kareemnubani4-beep@users.noreply.github.com>
+Date: Thu, 5 Nov 2026 16:03:17 +0000
+Subject: [PATCH 2/2] Capture only the faces a turn can show (2 for key turns,
+ 3 for drag)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MAT2uxjj2bWWGtWpzqPMJk
+---
+ src/hypr/pass.cpp   |  6 +++---
+ src/hypr/pass.hpp   |  4 +++-
+ src/hypr/plugin.cpp | 11 +++++------
+ 3 files changed, 11 insertions(+), 10 deletions(-)
+
+diff --git a/src/hypr/pass.cpp b/src/hypr/pass.cpp
+index a86f8ad..bf64adf 100644
+--- a/src/hypr/pass.cpp
++++ b/src/hypr/pass.cpp
+@@ -149,7 +149,7 @@ std::vector<UP<IPassElement>> CubePassElement::draw(Render::CRenderContext&) {
+     return {};
+ }
+ 
+-void startSession(PHLMONITOR mon, const cube::Config& cfg) {
++void startSession(PHLMONITOR mon, const cube::Config& cfg, const std::vector<int>& wanted) {
+     const float fovYRad = cfg.fovDeg * (float)M_PI / 180.f;
+     const cube::Geometry geometry =
+         cube::makeGeometry(cfg.faces, (float)mon->m_pixelSize.x, (float)mon->m_pixelSize.y, fovYRad);
+@@ -157,8 +157,8 @@ void startSession(PHLMONITOR mon, const cube::Config& cfg) {
+     // One glFinish() after the batch instead of one per face (session start otherwise
+     // stalls the pipeline 4-16 times in a row).
+     std::vector<FaceTexture> faces(cfg.faces);
+-    for (int i = 0; i < cfg.faces; ++i)
+-        faces[i] = captureWorkspace(mon, cube::workspaceOfFace(i), /*sync=*/false);
++    for (int i : wanted)
++        faces[cube::normalizeFace(i, cfg.faces)] = captureWorkspace(mon, cube::workspaceOfFace(cube::normalizeFace(i, cfg.faces)), /*sync=*/false);
+     finishCaptureSync();
+ 
+     g_session.emplace(CubeSession{mon, cube::CubeState{cfg}, geometry, std::move(faces), {}});
+diff --git a/src/hypr/pass.hpp b/src/hypr/pass.hpp
+index da67cd4..541a5ed 100644
+--- a/src/hypr/pass.hpp
++++ b/src/hypr/pass.hpp
+@@ -40,7 +40,9 @@ double nowMs();
+ // Notifies on a failed Config::Actions call; shared by every workspace-switch site.
+ void reportIfFailed(const char* what, const Config::Actions::ActionResult& res);
+ 
+-void startSession(PHLMONITOR mon, const cube::Config& cfg);
++// Only the faces in `wanted` are captured (the rest stay invalid and are skipped by draw()):
++// a 90-degree key turn only ever shows the face it leaves and the one it lands on.
++void startSession(PHLMONITOR mon, const cube::Config& cfg, const std::vector<int>& wanted);
+ void endSession();
+ // Records the face to commit (or -1 to just end without switching); the actual
+ // workspace switch and session teardown happen on the next event-loop turn.
+diff --git a/src/hypr/plugin.cpp b/src/hypr/plugin.cpp
+index 9b49680..f9ec9e0 100644
+--- a/src/hypr/plugin.cpp
++++ b/src/hypr/plugin.cpp
+@@ -166,11 +166,10 @@ static void cubeWorkspace(const std::string& arg) {
+         return;
+     }
+ 
+-    // Captures every face, not just the two the turn moves between: at any angle between
+-    // them the front pair does not cover the viewport, and the faces behind are visible
+-    // through the gap. Capturing only two left that gap empty.
+-    cube::setOrigin(activeNumberedID(mon), g_cfg.faces, workspaceCount(activeNumberedID(mon)));
+-    startSession(mon, g_cfg);
++    // Only the two faces the turn moves between are captured: on a 4-face cube seen from
++    // outside they cover the faces behind at every angle, and each capture is a full off-screen
++    // workspace render, so capturing all faces made every turn stutter on start.
++    startSession(mon, g_cfg, {face, face + dir});
+     g_session->state.startRotate(face, dir, nowMs());
+ }
+ 
+@@ -193,7 +192,7 @@ static void cubeDrag() {
+         return; // not on a cube face: nothing to spin
+ 
+     cube::setOrigin(activeNumberedID(mon), g_cfg.faces, workspaceCount(activeNumberedID(mon)));
+-    startSession(mon, g_cfg);
++    startSession(mon, g_cfg, {face - 1, face, face + 1});
+     g_session->state.startDrag(face, nowMs());
+     beginDragGrab();
+ }
+-- 
+2.56.0
+

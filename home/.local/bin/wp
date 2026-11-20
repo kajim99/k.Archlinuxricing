@@ -1,0 +1,14 @@
+#!/bin/bash
+# `wp` for places without fish (the Super search bar runs commands through bash).
+# The real command is the fish function ~/.config/fish/functions/wp.fish; in fish that function wins over this file.
+#   wp n / wp -n   run quietly (a notification says what was made)
+#   anything else  (list, -h, --n with its Y/n question) opens in a floating popup terminal
+case "$1" in
+    [1-9]*)
+        fish -c 'wp $argv' -- "$@" ;;
+    -[1-9]*)
+        out=$(fish -c 'wp $argv' -- "$@" 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+        notify-send -a Workspaces "wp $*" "$out" ;;
+    *)
+        exec kitty --class tools-popup --title "wp $*" fish -i -c 'clear; wp $argv; echo; read -P "  Enter to close " -l dummy' -- "$@" ;;
+esac

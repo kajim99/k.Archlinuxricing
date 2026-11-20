@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch Downloads for Liquid Lyrics exports
+
+[Path]
+PathChanged=%h/Downloads
+
+[Install]
+WantedBy=default.target

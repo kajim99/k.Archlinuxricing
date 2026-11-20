@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+# Sidebar to-do (end-4 right sidebar, To Do tab). The patched Todo.qml reloads on change.
+#   todo add "text" [--cmd "thing to type"]   |   todo done "part of text"   |   todo toggle N (0-based, used by PhoneBox)   |   todo list
+import json, os, sys
+P = os.path.expanduser("~/.local/state/quickshell/user/todo.json")
+try:
+    items = json.load(open(P))
+except (OSError, ValueError):
+    items = []
+argv = sys.argv[1:]
+extra = None
+if "--cmd" in argv:
+    k = argv.index("--cmd")
+    extra = argv[k + 1] if k + 1 < len(argv) else ""
+    del argv[k:k + 2]
+cmd, arg = (argv + ["list", ""])[:2]
+if cmd == "add":
+    if not any(i["content"] == arg for i in items):
+        item = {"content": arg, "done": False}
+        if extra:
+            item["cmd"] = extra
+        items.append(item)
+elif cmd == "done":
+    hits = [i for i in items if arg.lower() in i["content"].lower() and not i["done"]]
+    if len(hits) != 1:
+        sys.exit(f"{len(hits)} open tasks match {arg!r}")
+    hits[0]["done"] = True
+elif cmd == "toggle":
+    i = int(arg)
+    if 0 <= i < len(items):
+        items[i]["done"] = not items[i]["done"]
+if cmd in ("add", "done", "toggle"):
+    tmp = P + ".tmp"
+    json.dump(items, open(tmp, "w"))
+    os.replace(tmp, P)
+for i in items:
+    print(("[x] " if i["done"] else "[ ] ") + i["content"] + (f"  $ {i['cmd']}" if i.get("cmd") else ""))

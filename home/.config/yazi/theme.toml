@@ -1,0 +1,109 @@
+# Violet/blue theme for yazi (2026-11-03). Matches the rest of the desktop:
+# violet #8703ff (dominant), bright violet #a020ff, neon blue #0059e7,
+# selection #290090, text #e0dcff. Only colors are overridden; yazi's
+# defaults fill in everything else.
+
+[mgr]
+cwd = { fg = "#a020ff", bold = true }
+find_keyword  = { fg = "#a020ff", bold = true, underline = true }
+find_position = { fg = "#0059e7", bold = true }
+marker_copied   = { fg = "#0059e7", bg = "#0059e7" }
+marker_cut      = { fg = "#ff2a6d", bg = "#ff2a6d" }
+marker_marked   = { fg = "#a020ff", bg = "#a020ff" }
+marker_selected = { fg = "#8703ff", bg = "#8703ff" }
+count_copied   = { fg = "#ffffff", bg = "#0059e7" }
+count_cut      = { fg = "#ffffff", bg = "#ff2a6d" }
+count_selected = { fg = "#ffffff", bg = "#8703ff" }
+border_style  = { fg = "#8703ff" }
+
+[tabs]
+active   = { fg = "#ffffff", bg = "#8703ff", bold = true }
+inactive = { fg = "#a020ff", bg = "#1a0033" }
+
+[mode]
+normal_main = { fg = "#ffffff", bg = "#8703ff", bold = true }
+normal_alt  = { fg = "#a020ff", bg = "#1a0033" }
+select_main = { fg = "#ffffff", bg = "#0059e7", bold = true }
+select_alt  = { fg = "#0059e7", bg = "#1a0033" }
+unset_main  = { fg = "#ffffff", bg = "#ff2a6d", bold = true }
+unset_alt   = { fg = "#ff2a6d", bg = "#1a0033" }
+
+[indicator]
+parent  = { fg = "#ffffff", bg = "#290090" }
+current = { fg = "#ffffff", bg = "#290090", bold = true }
+preview = { underline = true }
+
+[status]
+perm_sep   = { fg = "#4a3a6a" }
+perm_type  = { fg = "#8703ff" }
+perm_read  = { fg = "#a020ff" }
+perm_write = { fg = "#0059e7" }
+perm_exec  = { fg = "#e0dcff" }
+progress_label  = { fg = "#ffffff", bold = true }
+progress_normal = { fg = "#8703ff", bg = "#1a0033" }
+progress_error  = { fg = "#ffffff", bg = "#ff2a6d" }
+
+[which]
+border    = { fg = "#8703ff" }
+cand      = { fg = "#a020ff" }
+rest      = { fg = "#4a3a6a" }
+desc      = { fg = "#e0dcff" }
+separator_style = { fg = "#4a3a6a" }
+
+[confirm]
+border = { fg = "#8703ff" }
+title  = { fg = "#a020ff", bold = true }
+
+[spot]
+border   = { fg = "#8703ff" }
+title    = { fg = "#a020ff" }
+tbl_col  = { fg = "#0059e7" }
+tbl_cell = { fg = "#ffffff", bg = "#290090" }
+
+[notify]
+title_info  = { fg = "#0059e7" }
+title_warn  = { fg = "#a020ff" }
+title_error = { fg = "#ff2a6d" }
+
+[pick]
+border = { fg = "#8703ff" }
+active = { fg = "#a020ff", bold = true }
+
+[input]
+border   = { fg = "#8703ff" }
+selected = { fg = "#ffffff", bg = "#290090" }
+
+[cmp]
+border = { fg = "#8703ff" }
+active = { fg = "#ffffff", bg = "#290090" }
+
+[tasks]
+border  = { fg = "#8703ff" }
+hovered = { fg = "#a020ff", bold = true }
+
+[help]
+border  = { fg = "#8703ff" }
+chord   = { fg = "#0059e7" }
+hovered = { fg = "#ffffff", bg = "#290090", bold = true }
+
+[filetype]
+rules = [
+	# Image
+	{ mime = "**/image/*", fg = "#a020ff" },
+	# Media
+	{ mime = "**/{audio,video}/*", fg = "#0059e7" },
+	# Archive
+	{ mime = "**/application/{zip,rar,7z*,tar,gzip,xz,zstd,bzip*,lzma,compress,archive,cpio,arj,xar,ms-cab*}", fg = "#ff2a6d" },
+	# Document
+	{ mime = "**/application/{pdf,doc,rtf}", fg = "#e0dcff", bold = true },
+	# Virtual file system
+	{ mime = "vfs/{absent,stale}", fg = "#4a3a6a" },
+	# Special file
+	{ url = "*", is = "orphan", bg = "#ff2a6d" },
+	{ url = "*", is = "exec"  , fg = "#8703ff", bold = true },
+	# Dummy file
+	{ url = "*", is = "dummy", bg = "#ff2a6d" },
+	{ url = "*/", is = "dummy", bg = "#ff2a6d" },
+	# Fallback
+	{ url = "*/", fg = "#8703ff", bold = true },
+]

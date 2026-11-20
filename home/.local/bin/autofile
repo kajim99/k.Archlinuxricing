@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+"""autofile: file new things in watched folders into category dirs.
+
+Triggered by ~/.config/systemd/user/autofile.path. Never overwrites: name
+collisions get " (1)", " (2)"... Partial downloads are skipped until stable.
+
+  autofile              sort now (with notifications)
+  autofile --dry-run    print what would move, move nothing
+  autofile --quiet      sort without notifications
+  autofile --notify MSG internal: show one popup with a "Mute 5 min" button
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HOME = Path.home()
+STATE = HOME / ".local/state/autofile"
+MUTE_FILE = STATE / "mute_until"
+MUTE_SECONDS = 5 * 60
+
+DL = HOME / "Downloads"
+DOCS = HOME / "Documents"
+WATCHED = [HOME, DL, HOME / "Desktop", DOCS,
+           HOME / "Pictures", HOME / "Videos", HOME / "Music"]
+# Unknown file types are only swept out of these "inbox" folders.
+INBOXES = {HOME, DL, HOME / "Desktop"}
+# Folders dropped here get filed (git repos -> Projects/Cloned, others -> Extracted).
+FOLDER_INBOXES = {DL, HOME / "Desktop"}
+DL_SUBDIRS = {"Archives", "Installers", "Extracted", "Other"}
+
+GIT_CLONE = HOME / "Projects/Cloned"
+EXTRACTED = DL / "Extracted"
+OTHER = DL / "Other"
+LYRICS = HOME / "Music/spotify-lyrics"
+WALLPAPERS = HOME / "Videos/Wallpapers"   # video files with "wallpaper"/"live" in the name
+PICTURES = HOME / "Pictures"
+VIDEOS = HOME / "Videos"
+EDITS = VIDEOS / "Edits"
+
+# Name-based sub-sorting for media, checked in order (first match wins).
+# Screenshots/recordings come first so "Screenshot_20261030_..." isn't taken for a phone photo.
+PHONE_RE = r"^(img|vid|pxl|dsc|dscn|mvimg|mov|signal|whatsapp|snapchat)[_-]?\d|^\d{8}[_-]\d{6}"
+WALL_RE = r"wallpaper|wallhaven|nebula|\blive\b|-live|_live|\d{4}x\d{4}"
+NAME_RULES = {
+    PICTURES: [
+        (r"screenshot|screen[ _-]?shot|hyprshot|grim|^shot[_-]|snip", PICTURES / "Screenshots"),
+        (WALL_RE, PICTURES / "Wallpapers"),
+        (PHONE_RE, PICTURES / "Phone"),
+    ],
+    VIDEOS: [
+        (r"^recording_|screen[ _-]?rec|screencast|screenrecorder|wf-recorder|obs[_-]", VIDEOS / "Screen-Recordings"),
+        (WALL_RE, WALLPAPERS),
+        (r"story|reel|edit|export|render|-final|_final", EDITS),
+        (PHONE_RE, VIDEOS / "Phone"),
+    ],
+}
+
+RULES = [
+    (EDITS, "kdenlive"),
+    (HOME / "Pictures", "jpg jpeg png gif webp bmp svg heic heif avif tif tiff ico"),
+    (HOME / "Videos", "mp4 mkv webm mov avi m4v flv wmv"),
+    (HOME / "Music", "mp3 flac wav ogg opus m4a aac"),
+    (DOCS / "PDFs", "pdf epub"),
+    (DOCS / "Presentations", "ppt pptx odp key"),
+    (DOCS / "Spreadsheets", "xls xlsx ods csv tsv"),
+    (DOCS / "Text", "doc docx odt rtf txt md"),
+    (DOCS / "Code", "py sh js ts json html css c h cpp rs go java lua toml yaml yml cs ino qml xml"),
+    (DOCS / "GameDev", "unitypackage blend fbx obj"),
+    (HOME / "ISOs", "iso img"),
+    (DL / "Installers", "pkg.tar.zst deb rpm appimage flatpakref exe msi"),
+    (DL / "Archives", "zip tar tar.gz tgz tar.xz txz tar.bz2 tar.zst gz xz bz2 zst 7z rar"),
+    (HOME / "Customization/fonts", "ttf otf woff woff2"),
+]
+EXT_DEST = {ext: dest for dest, exts in RULES for ext in exts.split()}
+PARTIAL = (".part", ".crdownload", ".download", ".partial", ".tmp", ".!qb", ".opdownload")
+SETTLE_SECONDS = 3      # file must be untouched this long
+FOLDER_SETTLE = 10      # folder (newest entry) must be untouched this long
+MAX_RUNTIME = 30 * 60
+
+
+def ext_of(p: Path):
+    name = p.name.lower()
+    # longest match first so "x.pkg.tar.zst" beats "x.zst"
+    for ext in sorted(EXT_DEST, key=len, reverse=True):
+        if name.endswith("." + ext):
+            return ext
+    return None
+
+
+def is_lyrics(p: Path):
+    try:
+        d = json.loads(p.read_text())
+    except Exception:
+        return False
+    return isinstance(d, dict) and {"lyrics", "draft", "updatedAt"} <= d.keys()
+
+
+def file_dest(p: Path, parent: Path):
+    if p.name.startswith(".") or p.name.lower().endswith(PARTIAL):
+        return None
+    if any((parent / (p.name + s)).exists() for s in PARTIAL):
+        return None  # browser still writing the companion .part file
+    if parent == HOME / "Desktop" and p.suffix == ".desktop":
+        return None
+    if parent == DL and p.suffix.lower() == ".json" and is_lyrics(p):
+        return LYRICS
+    ext = ext_of(p)
+    if ext:
+        dest = EXT_DEST[ext]
+        for pattern, sub in NAME_RULES.get(dest, ()):
+            if re.search(pattern, p.name.lower()):
+                return sub
+        return dest
+    return OTHER if parent in INBOXES else None
+
+
+def folder_dest(p: Path, parent: Path):
+    if p.name.startswith(".") or p in WATCHED or p.is_symlink():
+        return None
+    if parent == DL and p.name in DL_SUBDIRS:
+        return None
+    # Only inbox folders get filed; repos kept in ~ (e.g. ~/dotfiles) stay put.
+    if parent not in FOLDER_INBOXES:
+        return None
+    return GIT_CLONE if (p / ".git").exists() else EXTRACTED
+
+
+def newest_mtime(p: Path):
+    if p.is_file():
+        return p.stat().st_mtime
+    newest = p.stat().st_mtime
+    for root, dirs, files in os.walk(p):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for n in files:
+            try:
+                newest = max(newest, os.lstat(os.path.join(root, n)).st_mtime)
+            except OSError:
+                pass
+    return newest
+
+
+def settled(p: Path):
+    wait = SETTLE_SECONDS if p.is_file() else FOLDER_SETTLE
+    try:
+        if time.time() - newest_mtime(p) < wait:
+            return False
+        if p.is_file():
+            size = p.stat().st_size
+            time.sleep(1)
+            return p.stat().st_size == size
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def unique_target(dest_dir: Path, name: str):
+    target = dest_dir / name
+    if not target.exists():
+        return target
+    p = Path(name)
+    stem, suffix = p.stem, p.suffix
+    for ext in sorted(EXT_DEST, key=len, reverse=True):
+        if name.lower().endswith("." + ext):
+            stem, suffix = name[: -len(ext) - 1], name[-len(ext) - 1:]
+            break
+    n = 1
+    while (dest_dir / f"{stem} ({n}){suffix}").exists():
+        n += 1
+    return dest_dir / f"{stem} ({n}){suffix}"
+
+
+def pretty(p: Path):
+    return "~/" + str(p.relative_to(HOME)) if p.is_relative_to(HOME) else str(p)
+
+
+def muted():
+    try:
+        return time.time() < float(MUTE_FILE.read_text())
+    except (OSError, ValueError):
+        return False
+
+
+def notify(msg_title, msg_body):
+    if muted():
+        return
+    # Detached so the popup's button can wait for a click without blocking sorting.
+    subprocess.Popen([sys.executable, __file__, "--notify", msg_title, msg_body],
+                     start_new_session=True, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL)
+
+
+def notify_popup(title, body):
+    r = subprocess.run(["notify-send", "-a", "Autofile", "-i", "folder",
+                        "-t", "8000", "-A", "mute=Mute 5 min", title, body],
+                       capture_output=True, text=True)
+    if r.stdout.strip() == "mute":
+        STATE.mkdir(parents=True, exist_ok=True)
+        MUTE_FILE.write_text(str(time.time() + MUTE_SECONDS))
+        subprocess.run(["notify-send", "-a", "Autofile", "-i", "folder", "-t", "3000",
+                        "Autofile muted", "No popups for 5 minutes (files still get sorted)"])
+
+
+def candidates():
+    for parent in WATCHED:
+        if not parent.is_dir():
+            continue
+        for p in parent.iterdir():
+            if p.is_symlink():
+                continue
+            dest = file_dest(p, parent) if p.is_file() else folder_dest(p, parent)
+            if dest is not None and dest != parent:
+                yield p, dest
+
+
+def run(dry_run=False, quiet=False):
+    start = time.time()
+    while True:
+        pending = False
+        for p, dest in candidates():
+            if dry_run:
+                print(f"{pretty(p)}  ->  {pretty(dest)}/")
+                continue
+            if not settled(p):
+                pending = True
+                continue
+            dest.mkdir(parents=True, exist_ok=True)
+            target = unique_target(dest, p.name)
+            try:
+                shutil.move(str(p), str(target))
+            except FileNotFoundError:
+                continue  # someone else moved it first
+            if not quiet:
+                notify(f"Filed {p.name}", f"→ {pretty(target.parent)}")
+        if dry_run or not pending or time.time() - start > MAX_RUNTIME:
+            return
+        time.sleep(SETTLE_SECONDS)
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    if args[:1] == ["--notify"]:
+        notify_popup(args[1], args[2])
+    else:
+        run(dry_run="--dry-run" in args, quiet="--quiet" in args)

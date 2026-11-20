@@ -1,0 +1,79 @@
+/**
+ * @name Violet Neon
+ * @description Kareem's violet #8703ff + neon blue #0059e7, dark violet panels, blue text (2026-11-17)
+ * @author Claude
+ * @version 1.0.0
+ */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap");
+
+:root, .theme-dark, .theme-darker, .theme-midnight, .visual-refresh {
+  --vn-violet: #8703ff;
+  --vn-blue: #0059e7;
+  --vn-bg0: #05010d;
+  --vn-bg1: #0d0a1a;
+  --vn-bg2: #17122e;
+  --vn-bg3: #24104a;
+
+  --font-primary: "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  --font-display: "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  --font-code: "JetBrainsMono Nerd Font", "JetBrains Mono", monospace;
+
+  /* backgrounds (old + 2025 visual-refresh names) */
+  --background-primary: var(--vn-bg1);
+  --background-secondary: var(--vn-bg0);
+  --background-secondary-alt: var(--vn-bg2);
+  --background-tertiary: var(--vn-bg0);
+  --background-floating: var(--vn-bg2);
+  --background-base-lowest: var(--vn-bg0);
+  --background-base-lower: var(--vn-bg0);
+  --background-base-low: var(--vn-bg1);
+  --background-surface-high: var(--vn-bg2);
+  --background-surface-higher: var(--vn-bg3);
+  --background-surface-highest: var(--vn-bg3);
+  --chat-background-default: var(--vn-bg1);
+  --channeltextarea-background: var(--vn-bg2);
+  --modal-background: var(--vn-bg1);
+  --bg-overlay-chat: var(--vn-bg1);
+  --bg-base-primary: var(--vn-bg1);
+  --bg-base-secondary: var(--vn-bg0);
+  --bg-base-tertiary: var(--vn-bg0);
+  --background-modifier-hover: rgba(135, 3, 255, 0.14);
+  --background-modifier-active: rgba(135, 3, 255, 0.22);
+  --background-modifier-selected: rgba(135, 3, 255, 0.28);
+  --background-message-hover: rgba(135, 3, 255, 0.08);
+  --background-mentioned: rgba(0, 89, 231, 0.14);
+  --background-mentioned-hover: rgba(0, 89, 231, 0.2);
+  --border-subtle: var(--vn-bg3);
+  --border-faint: var(--vn-bg3);
+
+  /* text: blue, never white */
+  --text-normal: var(--vn-blue);
+  --text-default: var(--vn-blue);
+  --text-strong: var(--vn-violet);
+  --text-muted: #3d4fa8;
+  --text-link: var(--vn-violet);
+  --header-primary: var(--vn-violet);
+  --header-secondary: var(--vn-blue);
+  --channels-default: #3d4fa8;
+  --interactive-normal: var(--vn-blue);
+  --interactive-hover: var(--vn-violet);
+  --interactive-active: var(--vn-violet);
+  --interactive-muted: #2a2f6e;
+  --channel-icon: var(--vn-blue);
+
+  /* accents */
+  --brand-experiment: var(--vn-violet);
+  --brand-500: var(--vn-violet);
+  --brand-560: #7202d9;
+  --control-brand-foreground: var(--vn-violet);
+  --button-filled-brand-background: var(--vn-violet);
+  --button-filled-brand-background-hover: #7202d9;
+  --mention-foreground: var(--vn-violet);
+  --mention-background: rgba(135, 3, 255, 0.18);
+  --info-help-foreground: var(--vn-blue);
+  --scrollbar-thin-thumb: var(--vn-violet);
+  --scrollbar-auto-thumb: var(--vn-violet);
+  --scrollbar-auto-track: var(--vn-bg0);
+}
+
+::selection { background: rgba(135, 3, 255, 0.45); }

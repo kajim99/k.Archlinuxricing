@@ -1,0 +1,15 @@
+[Unit]
+Description=Watch home folders for new files to auto-file
+
+[Path]
+PathChanged=%h
+PathChanged=%h/Downloads
+PathChanged=%h/Desktop
+PathChanged=%h/Documents
+PathChanged=%h/Pictures
+PathChanged=%h/Videos
+PathChanged=%h/Music
+Unit=autofile.service
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,90 @@
+// macOS "About This Mac" style box; colors use terminal palette slots (blue/purple)
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/master/doc/json_schema.json",
+  "logo": {
+    "type": "kitty-direct",
+    "source": "~/.cache/fastfetch/arch-hollow.png",
+    "width": 28,
+    "height": 13,
+    "padding": {
+      "top": 0,
+      "left": 2,
+      "right": 3
+    }
+  },
+  "display": {
+    "separator": " ",
+    "size": {
+      "ndigits": 1,
+      "binaryPrefix": "iec"
+    },
+    "color": {
+      "output": "default"
+    }
+  },
+  "modules": [
+    {
+      "type": "custom",
+      "format": "{#90}╭─ {#38;2;255;95;87}● {#38;2;254;188;46}● {#38;2;40;200;64}●{#90} ────────╮"
+    },
+    {
+      "type": "custom",
+      "format": "{#90}│{#1;95} About This Mac {#90}│"
+    },
+    {
+      "type": "custom",
+      "format": "{#90}├────────────────┤"
+    },
+    {
+      "type": "os",
+      "key": "{#90}│{#35}  macOS        {#90}│",
+      "format": "Monterey 12 {#90}– Arch inside"
+    },
+    {
+      "type": "cpu",
+      "key": "{#90}│{#34}  Chip         {#90}│",
+      "format": "Intel Core{name~26}"
+    },
+    {
+      "type": "gpu",
+      "key": "{#90}│{#35} 󰢮 Graphics     {#90}│",
+      "hideType": "integrated",
+      "format": "{name~0,16}"
+    },
+    {
+      "type": "gpu",
+      "key": "{#90}│{#35} 󰢮 Graphics     {#90}│",
+      "hideType": "discrete",
+      "format": "Intel {name}"
+    },
+    {
+      "type": "memory",
+      "key": "{#90}│{#34}  Memory       {#90}│",
+      "format": "{used} / {total}"
+    },
+    {
+      "type": "disk",
+      "key": "{#90}│{#35}  Storage      {#90}│",
+      "folders": "/",
+      "format": "{size-used} / {size-total}"
+    },
+    {
+      "type": "display",
+      "key": "{#90}│{#34} 󰍹 Display      {#90}│",
+      "format": "{width}x{height} @ {refresh-rate} Hz"
+    },
+    {
+      "type": "uptime",
+      "key": "{#90}│{#35}  Uptime       {#90}│"
+    },
+    {
+      "type": "battery",
+      "key": "{#90}│{#34} 󰁹 Battery      {#90}│",
+      "format": "{capacity} · {status}"
+    },
+    {
+      "type": "custom",
+      "format": "{#90}╰────────────────╯"
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+/* VioletNeon — neon touches on top of color.ini (2026-11-03).
+   Colors: violet #8703ff (dominant), bright violet #a020ff, neon blue #0059e7.
+   2026-11-07: colors are variables so Extensions/cover-colors.js can repaint them from
+   the playing song's cover; with it off (or no cover) these VioletNeon defaults apply. */
+
+/* Registered as colors so they fade between songs (plain custom properties can't animate). */
+@property --vn-a      { syntax: '<color>'; inherits: true; initial-value: #8703ff; }
+@property --vn-a2     { syntax: '<color>'; inherits: true; initial-value: #a020ff; }
+@property --vn-b      { syntax: '<color>'; inherits: true; initial-value: #0059e7; }
+@property --vn-sel    { syntax: '<color>'; inherits: true; initial-value: #290090; }
+@property --vn-track  { syntax: '<color>'; inherits: true; initial-value: #2c2050; }
+@property --vn-scroll { syntax: '<color>'; inherits: true; initial-value: #4a3a6a; }
+@property --vn-panel  { syntax: '<color>'; inherits: true; initial-value: #1c1533; }
+@property --vn-card   { syntax: '<color>'; inherits: true; initial-value: #2c2050; }
+@property --vn-menu   { syntax: '<color>'; inherits: true; initial-value: #140f24; }
+
+/* Progress + volume bars: accent → second color, accent-heavy */
+.x-progressBar-fillColor,
+[data-testid="progress-bar"] [class*="fillColor"] {
+    background: linear-gradient(90deg, var(--vn-a) 0%, var(--vn-a) 60%, var(--vn-b) 100%) !important;
+}
+.progress-bar {
+    --fg-color: var(--vn-a) !important;
+    --bg-color: var(--vn-track) !important;
+}
+.progress-bar:hover,
+.progress-bar--isDragging {
+    --fg-color: var(--vn-a2) !important;
+}
+.x-progressBar-sliderArea div,
+.progress-bar__slider {
+    background-color: #ffffff !important;
+    box-shadow: 0 0 8px var(--vn-a2) !important;
+}
+
+/* Play buttons: accent with a soft glow */
+[data-testid="control-button-playpause"],
+[data-testid="play-button"] > span,
+.main-playButton-PlayButton > button > span {
+    background-color: var(--vn-a) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 14px color-mix(in srgb, var(--vn-a) 55%, transparent) !important;
+}
+[data-testid="control-button-playpause"]:hover,
+[data-testid="play-button"]:hover > span {
+    background-color: var(--vn-a2) !important;
+    box-shadow: 0 0 20px color-mix(in srgb, var(--vn-a2) 75%, transparent) !important;
+}
+
+/* Active shuffle/repeat/lyrics etc.: second color instead of green */
+[aria-checked="true"][data-testid^="control-button"] {
+    color: var(--vn-b) !important;
+}
+
+/* Cards and rows: faint accent glow on hover */
+.main-card-card:hover,
+[data-encore-id="card"]:hover {
+    box-shadow: 0 0 16px color-mix(in srgb, var(--vn-a) 30%, transparent) !important;
+}
+.main-trackList-trackListRow:hover,
+[data-testid="tracklist-row"]:hover {
+    background-color: color-mix(in srgb, var(--vn-a) 12%, transparent) !important;
+}
+.main-trackList-selected,
+[data-testid="tracklist-row"][aria-selected="true"] {
+    background-color: var(--vn-sel) !important;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar-thumb { background-color: var(--vn-scroll) !important; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--vn-a) !important; }
+
+/* Text selection */
+::selection { background: var(--vn-sel); color: #ffffff; }
+
+/* Glass: the window itself is see-through via Hyprland (0.85); these make the inner
+   panels float as frosted glass with a thin accent edge, like the bar's panels. */
+.Root__nav-bar,
+.Root__now-playing-bar,
+.Root__right-sidebar aside,
+.Root__main-view {
+    background-color: color-mix(in srgb, var(--vn-panel) 30%, transparent) !important;
+    backdrop-filter: blur(18px) saturate(140%) !important;
+    border: 1px solid color-mix(in srgb, var(--vn-a) 30%, transparent) !important;
+    border-radius: 10px !important;
+}
+.Root__nav-bar > *,
+.Root__right-sidebar aside > *,
+.Root__main-view > div,
+.main-view-container,
+.main-view-container__scroll-node-child,
+.main-yourLibraryX-libraryContainer,
+.main-yourLibraryX-library {
+    background-color: transparent !important;
+}
+.main-card-card,
+[data-encore-id="card"] {
+    background-color: color-mix(in srgb, var(--vn-card) 28%, transparent) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid color-mix(in srgb, var(--vn-a) 18%, transparent) !important;
+}
+.main-contextMenu-menu,
+[data-tippy-root] > div,
+.GenericModal {
+    background-color: color-mix(in srgb, var(--vn-menu) 55%, transparent) !important;
+    backdrop-filter: blur(22px) saturate(150%) !important;
+    border: 1px solid color-mix(in srgb, var(--vn-a) 40%, transparent) !important;
+}

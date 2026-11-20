@@ -1,0 +1,6 @@
+[Unit]
+Description=Move Liquid Lyrics exports to ~/Music/spotify-lyrics
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/move-spotify-lyrics

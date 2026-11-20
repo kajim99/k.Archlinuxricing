@@ -1,0 +1,23 @@
+; VioletNeon — Spotify in the desktop theme (2026-11-03)
+; violet #8703ff (dominant), bright violet #a020ff, neon blue #0059e7, bg #140f24, selection #290090, text #e0dcff
+[Base]
+text               = e0dcff
+subtext            = a89cc8
+main               = 140f24
+main-elevated      = 1c1533
+highlight          = 241a42
+highlight-elevated = 2c2050
+sidebar            = 0f0b1c
+player             = 0f0b1c
+card               = 1c1533
+shadow             = 000000
+selected-row       = e0dcff
+button             = 8703ff
+button-active      = a020ff
+button-secondary   = 0059e7
+button-disabled    = 4a3a6a
+tab-active         = 290090
+notification       = 0059e7
+notification-error = ff2a6d
+equalizer          = 8703ff
+misc               = 4a3a6a

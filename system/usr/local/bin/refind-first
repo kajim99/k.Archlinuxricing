@@ -1,0 +1,14 @@
+#!/bin/sh
+# Keep rEFInd first in the UEFI boot order, then GRUB, then Windows, then the rest.
+# Windows updates/repairs (bcdboot) push Windows Boot Manager back to the front.
+set -eu
+out=$(efibootmgr)
+id() { printf '%s\n' "$out" | sed -n "s/^Boot\([0-9A-F]\{4\}\)\* $1\b.*/\1/p" | head -n1; }
+refind=$(id 'rEFInd Boot Manager')
+[ -n "$refind" ] || { echo "rEFInd entry not found, leaving boot order alone"; exit 0; }
+grub=$(id 'GRUB'); win=$(id 'Windows Boot Manager')
+cur=$(printf '%s\n' "$out" | sed -n 's/^BootOrder: //p')
+new=$(printf '%s\n' "$refind" "$grub" "$win" $(echo "$cur" | tr ',' ' ') | awk 'NF && !seen[$0]++' | paste -sd,)
+if [ "$cur" = "$new" ]; then echo "Boot order already $cur"; exit 0; fi
+efibootmgr -q -o "$new"
+echo "Boot order $cur -> $new"

@@ -1,0 +1,4 @@
+#!/bin/bash
+# `tools` cheat sheet for places without fish (the Super search bar). Opens in a floating popup terminal.
+# The real command is the fish function ~/.config/fish/functions/tools.fish.
+exec kitty --class tools-popup --title "tools $*" fish -i -c 'clear; tools $argv; read -P "  scroll with the mouse · Enter to close " -l dummy' -- "$@"

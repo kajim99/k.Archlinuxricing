@@ -1,0 +1,9 @@
+claude-code https://aur.archlinux.org/claude-code.git 74cf8796140fb766c9b74880f4c4831ed3e2c8cd
+deckcraft https://aur.archlinux.org/deckcraft.git 00a131c731093c3d6c76f41a1aa80929ec33b8fd
+dots-hyprland https://github.com/end-4/dots-hyprland.git 2f0c8bf42b803f4d597572f2a014d4e78d7d9f26
+gnome-extensions-cli https://aur.archlinux.org/gnome-extensions-cli.git 934ead57a7b68880d9776c186b1499cc6bce940f
+gnome-terminal https://github.com/catppuccin/gnome-terminal.git 75e57457f58a34baf2ec7d9e13556ca53d598395
+hypr-cube https://github.com/dmty/hypr-cube.git e29b2073372fed01b4bda20ea83613e99b1890f1
+hyprland-plugins https://github.com/hyprwm/hyprland-plugins.git d2427d4d15b36df40468f5a58bbd67cdba19835d
+yay https://aur.archlinux.org/yay.git cb43f84828ab4f9700f7c6f9c6d7a923d4cfaff0
+zen-browser https://aur.archlinux.org/zen-browser.git 24514f03c3c48787d1c13651af01bedbcef109e8

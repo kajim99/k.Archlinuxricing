@@ -1,0 +1,42 @@
+#!/bin/bash
+# power-mode: LOQ 15IAX9 power modes (2026-11-14). Used by the bar's power pill and the battery watcher.
+#   power-mode saver     Quiet (blue light)      - via power-profiles-daemon
+#   power-mode balanced  Balance (white light)   - via power-profiles-daemon
+#   power-mode max       Custom at every firmware maximum (purple light): CPU 95/167 W, GPU 95+25 W, CPU 100 C
+#   power-mode cycle     saver -> balanced -> max -> saver
+#   power-mode get       prints saver | balanced | max | performance (red, firmware preset) | custom
+# Writing the firmware files needs /etc/tmpfiles.d/loq-power.conf (group wheel).
+PROF=/sys/class/platform-profile/platform-profile-0/profile
+ATTR=/sys/class/firmware-attributes/lenovo-wmi-other-0/attributes
+MAX=(ppt_pl1_spl=95 ppt_pl2_sppt=167 ppt_cpu_cl=55 gpu_nv_ctgp=95 gpu_nv_ppab=25 cpu_temp=100 gpu_temp=87)
+
+get() {
+    case "$(cat "$PROF")" in
+        low-power) echo saver ;;
+        balanced) echo balanced ;;
+        performance) echo performance ;;
+        max-power) echo custom ;;
+        custom)
+            [[ "$(cat "$ATTR/ppt_pl1_spl/current_value")" == 95 && "$(cat "$ATTR/gpu_nv_ctgp/current_value")" == 95 ]] \
+                && echo max || echo custom ;;
+    esac
+}
+
+max() {
+    echo custom >"$PROF" || exit 1      # limits can only be written while in custom
+    for kv in "${MAX[@]}"; do echo "${kv#*=}" >"$ATTR/${kv%=*}/current_value"; done
+}
+
+case "$1" in
+    saver) powerprofilesctl set power-saver ;;
+    balanced) powerprofilesctl set balanced ;;
+    max) max ;;
+    cycle)
+        case "$(get)" in
+            saver) powerprofilesctl set balanced ;;
+            balanced) max ;;
+            *) powerprofilesctl set power-saver ;;
+        esac ;;
+    get) get ;;
+    *) echo "usage: power-mode saver|balanced|max|cycle|get"; exit 1 ;;
+esac
