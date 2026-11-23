@@ -10,7 +10,7 @@ import Quickshell
 
 // Lock screen styled after the SDDM login screen (sddm-astronaut-theme + Themes/astronaut.conf.user):
 // same baked matrix video, blurred middle strip, Orbitron clock, username/password boxes and Login button.
-// Unlocking still goes through end-4's LockContext (PAM). Original: ~/Backups/config-backup-2026-10-28/LockSurface.qml.end4-original
+// Unlocking still goes through end-4's LockContext (PAM). Original: ~/Backups/Configs/config-backup-2026-10-28/LockSurface.qml.end4-original
 MouseArea {
     id: root
     required property LockContext context

@@ -264,6 +264,12 @@ Singleton {
         }
         // Do Not Disturb (2026-11-20): `qs ipc -c ii call notifications dnd true|false`
         function dnd(on: bool): void { root.silent = on; }
+        // Remove every notification from <app> with <summary> (2026-11-22): `qs ipc -c ii call notifications discard <app> <summary>`
+        function discard(app: string, summary: string): int {
+            const ids = root.list.filter(n => n.appName === app && n.summary === summary).map(n => n.notificationId);
+            ids.forEach(id => root.discardNotification(id));
+            return ids.length;
+        }
     }
 
     function triggerListChange() {

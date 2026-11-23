@@ -11,7 +11,7 @@ printf '\n# Set 2026-10-30: 7 tries, then locked for 2 minutes\ndeny = 7\nunlock
 faillock --user kareem --reset
 
 # 2. Neon violet login screen + rEFInd logo
-cp $H/Backups/config-backup-2026-10-28/sddm-login/astronaut.conf.user /usr/share/sddm/themes/sddm-astronaut-theme/Themes/
+cp $H/Backups/Configs/config-backup-2026-10-28/sddm-login/astronaut.conf.user /usr/share/sddm/themes/sddm-astronaut-theme/Themes/
 cp $H/Videos/Wallpapers/deep-space-matrix-login.mp4 /usr/share/sddm/themes/sddm-astronaut-theme/Backgrounds/
 cp $H/.theme-setup/arch-logo.png /efi/EFI/refind/themes/pb/arch.png
 

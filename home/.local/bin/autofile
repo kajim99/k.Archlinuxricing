@@ -50,6 +50,7 @@ NAME_RULES = {
     PICTURES: [
         (r"screenshot|screen[ _-]?shot|hyprshot|grim|^shot[_-]|snip", PICTURES / "Screenshots"),
         (WALL_RE, PICTURES / "Wallpapers"),
+        (r"whatsapp", PICTURES / "WhatsApp"),
         (PHONE_RE, PICTURES / "Phone"),
     ],
     VIDEOS: [

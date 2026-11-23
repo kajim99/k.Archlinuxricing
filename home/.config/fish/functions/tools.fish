@@ -1,6 +1,6 @@
 # Placeholders: n° = a number, <name> = your own value.
 # Cheat sheet for the terminal tools, folder shortcuts, nano and custom Hyprland keys (2026-11-03).
-# Usage: tools [z|fzf|yazi|fd|bat|wp|nav|nano|hypr|cmds|fix]   (no argument = everything)
+# Usage: tools [z|fzf|yazi|fd|bat|wp|nav|nano|hypr|cmds|phonebox|fix]   (no argument = everything)
 # Colors follow the theme: violet #8703ff/#a020ff headings, neon blue #0059e7 keys.
 
 function __tools_head
@@ -153,7 +153,24 @@ function tools --description 'Show useful shortcuts for z, fzf, yazi, fd, bat, f
             'plugins-rebuild'   'rebuild hyprbars + hypr-cube after a Hyprland update' \
             'audio-panel'       'sound output switcher (also Super+Ctrl+V)' \
             'move-spotify-lyrics' 'move Liquid Lyrics exports to ~/Music/spotify-lyrics' \
-            'arduino-ide'       'Arduino IDE (runs under XWayland so it opens)'
+            'arduino-ide'       'Arduino IDE (runs under XWayland so it opens)' \
+            'phonebox-restart'  'restart the phone desk panel (see the phonebox section)' \
+            'qs ipc -c ii call notifications dnd true|false' '' \
+            ''                  'Do Not Disturb on / off' \
+            'qs ipc -c ii call notifications discard <app> <title>' '' \
+            ''                  'remove that notification from the list'
+    end
+
+    if set -q all[1]; or contains -- $section phonebox pb
+        __tools_head 'PhoneBox  — the phone / tablet desk panel'
+        __tools_rows \
+            'phonebox-restart'  'restart it all + clean adb, then says what to do' \
+            'phonebox-widgets'  'rebuild every page after editing a widget' \
+            'phonebox-sync clear' 'empty the Inbox page' \
+            'Settings page'     'http://127.0.0.1:8765 in the browser' \
+            'Not showing?'      'phonebox-restart; if it says so, toggle USB debugging' \
+            'Allow prompt'      'tap Allow + tick Always allow on the phone' \
+            'Pages'             'tap the dots = All pages, tap one to jump'
     end
 
     if set -q all[1]; or contains -- $section fix fixes
@@ -165,15 +182,16 @@ function tools --description 'Show useful shortcuts for z, fzf, yazi, fd, bat, f
             'After Spotify update' 'spicetify apply (theme + extensions come back)' \
             'Spotify add-ons broken' 'Ctrl+R inside Spotify, or Super+Shift+Q then Super+S' \
             'After Roblox update' 'roblox-theme' \
-            'App frozen'        'Super+Shift+Alt+Q force-closes the window'
+            'App frozen'        'Super+Shift+Alt+Q force-closes the window' \
+            'Phone panel blank' 'phonebox-restart'
     end
 
-    if test -n "$section"; and not contains -- $section z zoxide fzf yazi y fd bat wp workspaces nav folders nano hypr hyprland keys cmds commands fix fixes
-        echo "Unknown section '$section'. Try: tools [z|fzf|yazi|fd|bat|wp|nav|nano|hypr|cmds|fix]"
+    if test -n "$section"; and not contains -- $section z zoxide fzf yazi y fd bat wp workspaces nav folders nano hypr hyprland keys cmds commands phonebox pb fix fixes
+        echo "Unknown section '$section'. Try: tools [z|fzf|yazi|fd|bat|wp|nav|nano|hypr|cmds|phonebox|fix]"
         return 1
     end
     echo
     set_color 4a3a6a; echo '  n° = a number   <name> = your own value'
-    set -q all[1]; and echo '  tools <name> shows one section: z fzf yazi fd bat wp nav nano hypr cmds fix'
+    set -q all[1]; and echo '  tools <name> shows one section: z fzf yazi fd bat wp nav nano hypr cmds phonebox fix'
     set_color normal; echo
 end

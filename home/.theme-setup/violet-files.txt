@@ -1,5 +1,5 @@
-/home/kareem/Backups/config-backup-2026-10-28/sddm-login/astronaut.conf.user
-/home/kareem/Backups/config-backup-2026-10-28/sddm-login/Clock.qml
+/home/kareem/Backups/Configs/config-backup-2026-10-28/sddm-login/astronaut.conf.user
+/home/kareem/Backups/Configs/config-backup-2026-10-28/sddm-login/Clock.qml
 /home/kareem/.config/Code/User/settings.json
 /home/kareem/.config/fastfetch/logo-bar.svg
 /home/kareem/.config/fastfetch/logo-bold.svg
