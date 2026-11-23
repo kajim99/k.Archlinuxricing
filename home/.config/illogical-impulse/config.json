@@ -119,8 +119,8 @@
                 "showOnlyWhenLocked": false,
                 "style": "ncm",
                 "styleLocked": "ncm",
-                "x": 638.7421875,
-                "y": 177.109375
+                "x": 688.31640625,
+                "y": 227.5
             },
             "weather": {
                 "enable": false,
