@@ -146,6 +146,17 @@ function tools --description 'Show useful shortcuts for z, fzf, yazi, fd, bat, f
         __tools_head 'Your commands'
         __tools_rows \
             'tools <name>'      'this cheat sheet (one section)' \
+            '/H-doctor'         'in a Claude chat: check + update everything, report, fix on OK' \
+            'todo add <text>'   'add to the sidebar To Do (todo list / done / toggle n°)' \
+            'dotfiles-sync'     'back up configs to ~/dotfiles + push to GitHub (runs daily)' \
+            'dotfiles-public-sync' 'rebuild + push the public rice repo (leak-checked)' \
+            'autofile'          'sort loose files in ~/Downloads + ~/Desktop now' \
+            'cube-rebuild'      'rebuild only the hypr-cube plugin' \
+            'claude-focus'      'jump to the terminal running Claude' \
+            'media-focus'       'jump to the app that is playing music' \
+            'screen-off'        'turn the laptop screen off (wakes on input)' \
+            'phonebox-power'    'power off / reboot with a 5 s cancel (PhoneBox buttons)' \
+            'phnet-watch'       'service: phone ethernet on when plugged in (systemctl --user restart phnet-watch)' \
             'wp …'              'workspaces (see the wp section)' \
             'power-mode …'      'saver / balanced / max (purple, firmware max) / cycle / get' \
             'roblox-theme'      'violet cursors + icons in Roblox (Sober); restart Roblox after' \
