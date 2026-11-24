@@ -1,5 +1,6 @@
 autofile.path
 move-spotify-lyrics.path
+phnet-watch.service
 wireplumber.service
 xdg-user-dirs.service
 ydotool.service

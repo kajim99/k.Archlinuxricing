@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# phnet (2026-11-23): the TECNO phone's USB ethernet + its notifications on the PC, on demand.
+#   phnet on   USB tethering on (private PC<->phone link; NetworkManager's "Phone USB (KDE only)" profile keeps
+#              internet on Wi-Fi) + KDE Connect running, so phone notifications reach the PC and PhoneBox's Inbox
+#   phnet off  phone back to normal USB (KDE Connect stays, it also works over Wi-Fi)
+#   phnet      status
+# Same steps as the old auto phone-tether script (hypr/custom/execs.lua, now off).
+PHONE=130243753D002363   # TECNO SPARK 30 Pro (adb serial)
+say() { echo "$1"; notify-send -a Phone "phnet" "$1" 2>/dev/null; }
+rndis_up() { for i in /sys/class/net/*; do readlink "$i/device/driver" 2>/dev/null | grep -q rndis_host && return 0; done; return 1; }
+online() { adb devices 2>/dev/null | grep -q "^$PHONE[[:space:]]*device"; }
+kde() { pgrep -x kdeconnectd >/dev/null || { setsid -f kdeconnectd >/dev/null 2>&1; sleep 2; }; kdeconnect-cli --refresh >/dev/null 2>&1; }
+
+case "$1" in
+on)
+    rm -f "$XDG_RUNTIME_DIR/phnet-manual-off"
+    online || { say "Phone not on adb: plug it in and allow USB debugging, then run phnet on again."; exit 1; }
+    kde
+    if rndis_up; then say "Already on: phone ethernet + notifications."; exit 0; fi
+    adb -s "$PHONE" shell svc usb setFunctions rndis >/dev/null 2>&1
+    for _ in $(seq 1 15); do rndis_up && break; sleep 1; done
+    if rndis_up; then
+        kdeconnect-cli --refresh >/dev/null 2>&1
+        say "Phone ethernet on (internet stays on Wi-Fi) + notifications on."
+    else
+        online && adb -s "$PHONE" shell svc usb setFunctions mtp >/dev/null 2>&1
+        say "USB tethering didn't come up; phone set back to normal USB. Notifications still work over Wi-Fi."
+        exit 1
+    fi ;;
+off)
+    touch "$XDG_RUNTIME_DIR/phnet-manual-off"   # phnet-watch leaves it off until the phone is unplugged
+    if online; then adb -s "$PHONE" shell svc usb setFunctions mtp >/dev/null 2>&1; fi
+    say "Phone ethernet off (normal USB). Notifications keep working over Wi-Fi." ;;
+""|status)
+    echo "ethernet:      $(rndis_up && echo on || echo off)"
+    echo "phone on adb:  $(online && echo yes || echo no)"
+    if ! pgrep -x kdeconnectd >/dev/null; then n="KDE Connect not running"
+    elif [ -n "$(kdeconnect-cli -a --id-only 2>/dev/null)" ]; then n="on (phone connected to KDE Connect)"
+    else n="KDE Connect running, phone not reachable"; fi
+    echo "notifications: $n" ;;
+*)
+    echo "usage: phnet [on|off|status]"; exit 2 ;;
+esac

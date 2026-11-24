@@ -4,6 +4,8 @@ import qs.modules.common.widgets
 import "calendar_layout.js" as CalendarLayout
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
 
 Item {
     // Layout.topMargin: 10

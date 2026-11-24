@@ -1,6 +1,6 @@
 # Placeholders: n° = a number, <name> = your own value.
 # Cheat sheet for the terminal tools, folder shortcuts, nano and custom Hyprland keys (2026-11-03).
-# Usage: tools [z|fzf|yazi|fd|bat|wp|nav|nano|hypr|cmds|phonebox|fix]   (no argument = everything)
+# Usage: tools [z|fzf|yazi|fd|bat|wp|nav|nano|hypr|cmds|phone|phonebox|fix]   (no argument = everything)
 # Colors follow the theme: violet #8703ff/#a020ff headings, neon blue #0059e7 keys.
 
 function __tools_head
@@ -155,15 +155,31 @@ function tools --description 'Show useful shortcuts for z, fzf, yazi, fd, bat, f
             'move-spotify-lyrics' 'move Liquid Lyrics exports to ~/Music/spotify-lyrics' \
             'arduino-ide'       'Arduino IDE (runs under XWayland so it opens)' \
             'phonebox-restart'  'restart the phone desk panel (see the phonebox section)' \
+            'phnet on|off'      'phone USB ethernet + notifications (see the phone section)' \
+            'phbx'              'PhoneBox back on on the phone' \
             'qs ipc -c ii call notifications dnd true|false' '' \
             ''                  'Do Not Disturb on / off' \
             'qs ipc -c ii call notifications discard <app> <title>' '' \
             ''                  'remove that notification from the list'
     end
 
-    if set -q all[1]; or contains -- $section phonebox pb
-        __tools_head 'PhoneBox  — the phone / tablet desk panel'
+    if set -q all[1]; or contains -- $section phone phnet
+        __tools_head 'Phone  — USB ethernet + notifications (TECNO)'
         __tools_rows \
+            'phnet on'          'USB ethernet on + phone notifications on the PC' \
+            'phnet off'         'phone back to normal USB (notifications stay, over Wi-Fi)' \
+            'phnet'             'show what is on' \
+            'Auto'              'plugging the phone in turns it on by itself (phnet-watch)' \
+            'phnet off'         '...stays off until you unplug the phone' \
+            'Internet'          'stays on Wi-Fi; the cable is a private PC-phone link' \
+            'Phone USB setting' 'Developer options → Default USB configuration → No data transfer' \
+            'adb stuck?'        'toggle USB debugging off and on (after any USB mode change)'
+    end
+
+    if set -q all[1]; or contains -- $section phonebox pb
+        __tools_head 'PhoneBox  — the phone desk panel'
+        __tools_rows \
+            'phbx'              'turn PhoneBox back on on the phone (after plugging it in)' \
             'phonebox-restart'  'restart it all + clean adb, then says what to do' \
             'phonebox-widgets'  'rebuild every page after editing a widget' \
             'phonebox-sync clear' 'empty the Inbox page' \
@@ -186,12 +202,12 @@ function tools --description 'Show useful shortcuts for z, fzf, yazi, fd, bat, f
             'Phone panel blank' 'phonebox-restart'
     end
 
-    if test -n "$section"; and not contains -- $section z zoxide fzf yazi y fd bat wp workspaces nav folders nano hypr hyprland keys cmds commands phonebox pb fix fixes
-        echo "Unknown section '$section'. Try: tools [z|fzf|yazi|fd|bat|wp|nav|nano|hypr|cmds|phonebox|fix]"
+    if test -n "$section"; and not contains -- $section z zoxide fzf yazi y fd bat wp workspaces nav folders nano hypr hyprland keys cmds commands phone phnet phonebox pb fix fixes
+        echo "Unknown section '$section'. Try: tools [z|fzf|yazi|fd|bat|wp|nav|nano|hypr|cmds|phone|phonebox|fix]"
         return 1
     end
     echo
     set_color 4a3a6a; echo '  n° = a number   <name> = your own value'
-    set -q all[1]; and echo '  tools <name> shows one section: z fzf yazi fd bat wp nav nano hypr cmds phonebox fix'
+    set -q all[1]; and echo '  tools <name> shows one section: z fzf yazi fd bat wp nav nano hypr cmds phone phonebox fix'
     set_color normal; echo
 end

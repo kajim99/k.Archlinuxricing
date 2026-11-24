@@ -1,0 +1,10 @@
+[Unit]
+Description=Phone plugged in -> USB ethernet + notifications (phnet on)
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/phnet-watch
+Restart=no
+
+[Install]
+WantedBy=graphical-session.target

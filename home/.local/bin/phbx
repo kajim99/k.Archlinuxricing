@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# phbx (2026-11-23): turn PhoneBox on the phone back on (re-enables the app and opens it).
+# Tablet / both modes removed 2026-11-24: the Tab A7 died, the phone is the only PhoneBox device now.
+#   phbx      PhoneBox on the phone   (phbx -p does the same)
+PHONE=130243753D002363   # TECNO SPARK 30 Pro
+PKG=net.oxog.phonebox.deskpanel
+
+case "$1" in
+    ""|-p) ;;
+    *) echo "usage: phbx   (PhoneBox on the phone)"; exit 2 ;;
+esac
+if ! adb devices 2>/dev/null | grep -q "^$PHONE[[:space:]]*device"; then
+    echo "phone: not plugged in (run phbx again once it is)"; exit 1
+fi
+adb -s "$PHONE" shell pm enable --user 0 "$PKG" >/dev/null 2>&1
+adb -s "$PHONE" shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1   # the agent also opens it within ~10 s
+echo "phone: PhoneBox on"
+notify-send -a PhoneBox "phbx" "PhoneBox on the phone" 2>/dev/null
+exit 0

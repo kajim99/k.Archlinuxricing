@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs Kareem's Arch rice (Hyprland + end-4, violet/blue) on a fresh Arch install.
-#   git clone https://github.com/kareemnubani4-beep/PU_H ~/dotfiles && ~/dotfiles/restore.sh
+#   git clone https://github.com/kareemnubani4-beep/k.Archlinuxricing ~/dotfiles && ~/dotfiles/restore.sh
 # DRY=1 ~/dotfiles/restore.sh   -> only prints what it would do, changes nothing.
 # Order: sudo once -> base tools + yay -> end-4 (pinned) -> packages -> your files over end-4's
 #        -> system files/services/groups -> cloned repos (+ local patches) -> checklist.

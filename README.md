@@ -25,7 +25,7 @@ On a fresh Arch install:
 
 ```
 sudo pacman -S --needed git
-git clone https://github.com/kareemnubani4-beep/PU_H ~/dotfiles
+git clone https://github.com/kareemnubani4-beep/k.Archlinuxricing ~/dotfiles
 DRY=1 ~/dotfiles/restore.sh   # preview: prints every step, changes nothing
 ~/dotfiles/restore.sh
 ```
