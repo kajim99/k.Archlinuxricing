@@ -1,0 +1,46 @@
+#!/bin/bash
+# boot-check (2026-11-27): is Arch still bootable after package changes?
+# On 2026-11-24 an interrupted `yay -Syu` left /boot without a kernel (pacman's remove hook ran, the install
+# hooks never did) -> GRUB "vmlinuz-linux not found" on the next boot. This catches that BEFORE a reboot.
+#   boot-check           print status; exit 0 = fine, 1 = broken (reasons + FIX line printed)
+#   boot-check --alert   same, and if broken: red full-screen lock (boot-alarm) + reboot/shutdown blocked
+# Runs from boot-check.path (package database changed) and at login (boot-check.service).
+[[ -n "${BOOT_CHECK_FAKE:-}" ]] && { echo "TEST: pretend /boot/vmlinuz-linux is missing"; echo "FIX: sudo pacman -S linux nvidia-open"; [[ "$1" == --alert ]] && exec "$HOME/.local/bin/boot-alarm"; exit 1; }
+
+# wait while pacman is still working (its hooks run before the lock goes)
+[[ -n "${BOOT_CHECK_NO_WAIT:-}" ]] || for _ in $(seq 600); do [[ -e /var/lib/pacman/db.lck ]] || break; sleep 2; done
+
+problems=(); pkgs=()
+kpkg=$(pacman -Q linux 2>/dev/null | awk '{print $2}')            # e.g. 7.3.6.arch1-1
+kver=$(sed -E 's/\.(arch[0-9]+)-/-\1-/' <<<"$kpkg")                # -> 7.3.6-arch1-1
+if [[ -z "$kpkg" ]]; then
+    problems+=("the 'linux' package is not installed"); pkgs+=(linux)
+else
+    mods=/usr/lib/modules/$kver
+    if [[ ! -f /boot/vmlinuz-linux ]]; then
+        problems+=("/boot/vmlinuz-linux is missing (GRUB will say 'file not found')"); pkgs+=(linux)
+    elif ! file -b /boot/vmlinuz-linux | grep -q "version $kver "; then
+        problems+=("/boot/vmlinuz-linux is not the installed kernel $kver"); pkgs+=(linux)
+    fi
+    if [[ ! -f /boot/initramfs-linux.img ]]; then
+        problems+=("/boot/initramfs-linux.img is missing (kernel panic at boot)"); pkgs+=(linux)
+    elif [[ -f $mods/vmlinuz && /boot/initramfs-linux.img -ot $mods/vmlinuz ]]; then
+        problems+=("/boot/initramfs-linux.img is older than kernel $kver (not rebuilt)"); pkgs+=(linux)
+    fi
+    if pacman -Q nvidia-open >/dev/null 2>&1 && ! compgen -G "$mods/extramodules/nvidia.ko*" >/dev/null \
+        && ! compgen -G "$mods/updates/dkms/nvidia.ko*" >/dev/null; then
+        problems+=("no Nvidia driver built for kernel $kver (black screen / no RTX)"); pkgs+=(nvidia-open)
+    fi
+fi
+
+if (( ${#problems[@]} == 0 )); then
+    echo "boot-check: OK (kernel ${kver:-?}, initramfs and Nvidia driver in place)"
+    exit 0
+fi
+fix="sudo pacman -S $(printf '%s\n' "${pkgs[@]}" | awk '!s[$0]++' | tr '\n' ' ' | sed 's/ $//')"
+printf 'PROBLEM: %s\n' "${problems[@]}"
+echo "FIX: $fix"
+if [[ "$1" == --alert ]] && ! pgrep -f 'boot-alarm' >/dev/null; then
+    exec "$HOME/.local/bin/boot-alarm"
+fi
+exit 1

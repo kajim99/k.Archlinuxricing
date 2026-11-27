@@ -6,7 +6,9 @@
 # full-width katakana fit and the spacing matches the 16 px Windows grid.
 # SIGRTMIN+1 / SIGRTMIN+2 = split colors on/off (lock screen): deep violet left half, blue right half.
 # SIGUSR1 = rewind: every column is pulled back up off the top, then the script exits.
-import random, shutil, signal, sys, time
+# SIGRTMIN+3 / SIGRTMIN+4 = red mode on/off (boot-alarm, 2026-11-27): new drops red, old ones fade out.
+# Writes its cell size to $XDG_RUNTIME_DIR/matrix-rain.cell ("<cell w px> <cell h px>") so boot-alarm moves in rain rows.
+import fcntl, os, random, shutil, signal, struct, sys, termios, time
 
 ASCII = [chr(i) for i in range(33, 127)]
 KATA = list("アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉ")
@@ -23,6 +25,8 @@ RESTART = 0.025        # chance per step that a column past the bottom starts ag
 CW = 2                 # terminal cells per rain column
 REWIND_SPEED = 2       # rows per step while rewinding
 SPLIT = False          # set by the lock screen
+RED = False            # set by boot-alarm
+REDS = ((255, 30, 60), (150, 0, 24))
 
 
 def mix(a, b, t):
@@ -63,8 +67,17 @@ class Rain:
         self.col_color = [pick_color() for _ in range(self.cols)]
         self.cells = {}  # (col, row) -> [char, rgb, brightness]
         sys.stdout.write(f"\x1b[48;2;{BG[0]};{BG[1]};{BG[2]}m\x1b[2J\x1b[1m")
+        try:  # cell size for boot-alarm
+            r, c, xp, yp = struct.unpack("HHHH", fcntl.ioctl(1, termios.TIOCGWINSZ, b"\0" * 8))
+            if xp and yp:
+                with open(os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "matrix-rain.cell"), "w") as f:
+                    f.write(f"{xp / c:.3f} {yp / r:.3f}\n")
+        except OSError:
+            pass
 
     def color(self, col):
+        if RED:
+            return mix(REDS[0], REDS[1], random.random() ** 2)
         if SPLIT:
             return split_color(col, self.cols)
         return self.col_color[col] if random.random() < 0.5 else pick_color()
@@ -137,6 +150,13 @@ def main():
 
     signal.signal(signal.SIGRTMIN + 1, lambda *_: set_split(True))
     signal.signal(signal.SIGRTMIN + 2, lambda *_: set_split(False))
+
+    def set_red(on):
+        global RED
+        RED = on
+
+    signal.signal(signal.SIGRTMIN + 3, lambda *_: set_red(True))
+    signal.signal(signal.SIGRTMIN + 4, lambda *_: set_red(False))
 
     def quit_(*_):
         sys.stdout.write("\x1b[0m\x1b[?25h\x1b[?1049l")

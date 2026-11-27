@@ -1,0 +1,22 @@
+#!/bin/bash
+# doom — test the DON'T-RESTART alarm (boot-alarm) with a fake failure. 2026-11-27
+#   doom          play it: windows vanish, the clock rains away, the rain turns red, a red clock rains back in.
+#                 Super+Enter still opens a terminal; nothing else can open.
+#   doom off      end it (the test, or a false alarm): windows, bar and violet rain come back (within 5 s)
+#   doom rescue   emergency: force everything back if the alarm itself got stuck
+S=$HOME/.config/hypr/custom/scripts
+case "$1" in
+    off) touch "$XDG_RUNTIME_DIR/boot-alarm/off" 2>/dev/null && echo "closing (within 5 s)…" || echo "no alarm running" ;;
+    rescue)
+        pkill -f "boot-alarm-u[i].py"; pkill -f "bash $HOME/.local/bin/boot-alar[m]"
+        hyprctl -j clients | jq -r '.[] | select(.workspace.name=="special:doom") | .address' | while read -r a; do
+            hyprctl eval "hl.dispatch(hl.dsp.window.move({ workspace = \"1\", follow = false, window = \"address:$a\" }))" >/dev/null
+        done
+        pkill -RTMIN+4 -f "^python3 -I $S/matrix-rai[n]\.py$"
+        for s in "$XDG_RUNTIME_DIR"/matrix-rain.kitty-*; do kitten @ --to "unix:$s" set-font-size 12 >/dev/null 2>&1; done
+        pgrep -x qs >/dev/null || setsid -f qs -c ii >/dev/null 2>&1 < /dev/null
+        pkill -CONT -f "^bash $S/qs-watchdo[g]\.sh$"
+        echo "rescued: windows on workspace 1, bar + violet rain back" ;;
+    *)   setsid -f "$HOME/.local/bin/boot-alarm" --fake >/dev/null 2>&1 < /dev/null
+         echo "doom started — end it with: doom off   (stuck? doom rescue)" ;;
+esac

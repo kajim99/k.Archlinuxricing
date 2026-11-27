@@ -9,10 +9,12 @@ PATTERN="^python3 -I .*/matrix-rain\.py$"
 
 launch() {
     # N-CM (2026-11-16): solid #05010d on the wallpaper layer, so end-4's desktop clock (bottom layer) stays on top
+    # remote-control socket (2026-11-27): boot-alarm makes the characters bigger with `kitten @ set-font-size`
     kitten panel --detach --edge=center --layer=background --focus-policy=not-allowed \
         --app-id=kitty-matrix-rain --os-window-tag=kitty-matrix-rain \
         -o background=#05010d -o background_opacity=1 -o window_margin_width=0 -o font_size=12 \
         -o "font_family=JetBrainsMono Nerd Font" \
+        -o allow_remote_control=socket-only -o "listen_on=unix:$XDG_RUNTIME_DIR/matrix-rain.kitty" \
         sh -c "exec python3 -I '$SCRIPT' 2>>'$LOG'"   # exec keeps the process name for $PATTERN; errors go to the log
 }
 

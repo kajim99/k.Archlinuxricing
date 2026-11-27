@@ -1,6 +1,8 @@
 autofile.path
+boot-check.path
 move-spotify-lyrics.path
 battery-log.service
+boot-check.service
 flatpak-nvidia-sync.service
 phnet-watch.service
 wireplumber.service

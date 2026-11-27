@@ -74,6 +74,7 @@ mediainfo
 mkinitcpio
 mpvpaper
 nano
+nodejs-lts-krypton
 noto-fonts-cjk
 nvidia-open
 nvidia-prime

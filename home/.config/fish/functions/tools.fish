@@ -175,6 +175,10 @@ function tools --description 'Show useful shortcuts for z, fzf, yazi, fd, bat, f
             'battery-log'       'service: logs battery drain per power mode (feeds the battery hover popup)' \
             'flatpak-nvidia-sync' 'match the Flatpak Nvidia driver to the system one (Sober on the RTX); runs at login' \
             'phone-tether'      'service: phone USB ethernet on plug-in (started at login)' \
+            'boot-check'        'is Arch still bootable? (kernel + initramfs + Nvidia in /boot); runs after every package change' \
+            'doom'              'test the DON\'T-RESTART alarm: windows vanish, clock rains away, rain turns red (fake failure)' \
+            'doom rescue'       'emergency: force windows, bar and violet rain back if the alarm got stuck' \
+            'doom off'          'end the doom test / dismiss a false alarm (windows, bar, rain come back)' \
             'Click battery icon' 'top bar: cycle the charge mode (hover shows it)' \
             'phbx'              'PhoneBox back on on the phone' \
             'qs ipc -c ii call notifications dnd true|false' '' \

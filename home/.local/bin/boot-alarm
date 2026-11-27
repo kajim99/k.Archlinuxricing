@@ -1,0 +1,64 @@
+#!/bin/bash
+# boot-alarm (v4, 2026-11-27) — shown by `boot-check --alert` when Arch would not boot. Test: `doom`, end: `doom off`.
+#  1. instantly: music paused, every window hidden on special:doom
+#  2. boot-alarm-ui.py (bottom layer, see-through) draws a copy of the violet Anurati clock where Quickshell's is,
+#     then Quickshell (bar + real clock) is stopped and the wallpaper rain switches to red: new drops come in red
+#     while the violet ones fade, and the clock's letters fall away in the rain's rhythm and rain back in red
+#  3. until fixed: reboot/shutdown/sleep blocked (systemd-inhibit); any new window that isn't a terminal (kitty)
+#     is hidden at once; switching workspaces works
+#  4. fixed or `doom off`: windows, Quickshell and the violet rain come back
+exec 9>"$XDG_RUNTIME_DIR/boot-alarm.lock"; flock -n 9 || exit 0
+[[ "$1" == --fake ]] && export BOOT_CHECK_FAKE=1
+if [[ -z "${BOOT_ALARM_INHIBITED:-}" ]]; then
+    export BOOT_ALARM_INHIBITED=1
+    exec 9>&-
+    exec systemd-inhibit --what=shutdown:sleep:handle-power-key:handle-suspend-key:handle-hibernate-key:handle-lid-switch \
+        --who="boot-check" --why="Arch would not boot: the kernel in /boot is missing or wrong. Fix it first." \
+        --mode=block "$0" "$@"
+fi
+
+D=$XDG_RUNTIME_DIR/boot-alarm; rm -rf "$D"; mkdir -p "$D"
+BIN=$HOME/.local/bin
+SCRIPTS=$HOME/.config/hypr/custom/scripts
+RAIN_RE="^python3 -I $SCRIPTS/matrix-rain\.py$"
+SOCK=$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock
+hy() { hyprctl eval "$1" >/dev/null 2>&1; }
+move() { hy "hl.dispatch(hl.dsp.window.move({ workspace = \"$2\", follow = false, window = \"address:$1\" }))"; }
+
+# 1. instantly
+playerctl -a pause 2>/dev/null
+hyprctl -j clients > "$D/clients.json"
+jq -r '.[].address' "$D/clients.json" | while read -r a; do move "$a" special:doom; done &
+pkill -STOP -f "^bash $SCRIPTS/qs-watchdog\.sh$"
+
+# 2. the red screen over the (still violet) rain
+if pgrep -f "$RAIN_RE" >/dev/null; then mode=shared; op=0; else mode=own; op=1; fi
+kitten panel --edge=center --layer=bottom --focus-policy=not-allowed --app-id=boot-alarm \
+    -o background=#080103 -o background_opacity=$op -o window_margin_width=0 -o font_size=12 \
+    -o "font_family=JetBrainsMono Nerd Font" -o cursor=#080103 \
+    python3 -I "$BIN/boot-alarm-ui.py" "$D" "$mode" &
+UI=$!
+for _ in $(seq 80); do [[ -e $D/ready ]] && break; sleep 0.1; done
+pkill -x qs                                             # bar + real clock gone, our copy is already falling
+pkill -RTMIN+3 -f "$RAIN_RE"                            # rain turns red as it falls
+wait %1 2>/dev/null                                     # windows hidden
+
+# 3. only terminals may open
+socat -U - "UNIX-CONNECT:$SOCK" 2>/dev/null | while IFS= read -r line; do
+    [[ $line == openwindow\>\>* ]] || continue
+    IFS=, read -r a _ cls _ <<<"${line#openwindow>>}"
+    [[ $cls == kitty ]] || { move "0x$a" special:doom; echo "0x$a" >> "$D/blocked"; }
+done &
+GUARD=$!
+
+wait $UI
+
+# 4. put everything back
+kill $GUARD 2>/dev/null; pkill -P $GUARD 2>/dev/null
+pkill -RTMIN+4 -f "$RAIN_RE"
+for s in "$XDG_RUNTIME_DIR"/matrix-rain.kitty-*; do kitten @ --to "unix:$s" set-font-size 12 >/dev/null 2>&1; done
+setsid -f qs -c ii >/dev/null 2>&1 < /dev/null 9>&-
+pkill -CONT -f "^bash $SCRIPTS/qs-watchdog\.sh$"
+jq -r '.[] | "\(.address) \(.workspace.name)"' "$D/clients.json" | while read -r a ws; do move "$a" "$ws"; done
+cur=$(hyprctl -j activeworkspace | jq -r .name)
+[[ -e $D/blocked ]] && while read -r a; do move "$a" "$cur"; done < "$D/blocked"

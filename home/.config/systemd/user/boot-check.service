@@ -1,0 +1,13 @@
+[Unit]
+Description=Check Arch is still bootable (kernel + initramfs + Nvidia in /boot); red lock if not
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sh -c 'for i in $(seq 90); do systemctl --user show-environment | grep -q "^WAYLAND_DISPLAY=" && exit 0; sleep 1; done; exit 0'
+ExecStart=%h/.local/bin/boot-check --alert
+SuccessExitStatus=1
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=graphical-session.target

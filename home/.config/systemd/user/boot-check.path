@@ -1,0 +1,10 @@
+[Unit]
+Description=Re-check bootability whenever packages change (catches interrupted updates too)
+
+[Path]
+PathChanged=/var/lib/pacman/local
+PathChanged=/boot
+Unit=boot-check.service
+
+[Install]
+WantedBy=graphical-session.target
