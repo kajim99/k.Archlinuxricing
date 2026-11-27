@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# charge-mode [get|cycle|long|standard|fast] (2026-11-24): Lenovo battery charge mode via
+# /sys/class/power_supply/BAT1/charge_types.  Long_Life = stops ~80% (healthier), Standard = to 100%,
+# Fast = to 100% quicker (more wear). Writable without sudo thanks to /etc/udev/rules.d/99-battery-charge-mode.rules.
+# Top-bar battery icon: left-click = "charge-mode toggle100" (Standard <-> Fast, both to 100%), right-click =
+# "charge-mode long" (80%). Every change is logged to ~/.local/state/charge-mode.log (battery-log logs outside changes).
+F=/sys/class/power_supply/BAT1/charge_types
+cur=$(grep -o '\[[^]]*\]' "$F" | tr -d '[]')
+LOG=$HOME/.local/state/charge-mode.log
+set_to() {
+    if [ -w "$F" ]; then echo "$1" > "$F" && echo "$(date '+%F %T') $cur -> $1 (${SRC:-terminal})" >> "$LOG"
+    else echo "No permission yet: run once  sudo install -m644 ~/Tools/Setup-scripts/battery-mode/99-battery-charge-mode.rules /etc/udev/rules.d/ && sudo udevadm trigger -s power_supply"; exit 1; fi
+}
+case "${1:-get}" in
+    get)      echo "$cur" ;;
+    long)     set_to Long_Life ;;
+    standard) set_to Standard ;;
+    fast)     set_to Fast ;;
+    toggle100) [ "$cur" = Standard ] && set_to Fast || set_to Standard ;;
+    cycle)    case "$cur" in Long_Life) set_to Standard ;; Standard) set_to Fast ;; *) set_to Long_Life ;; esac ;;
+    *) echo "usage: charge-mode [get|toggle100|long|standard|fast|cycle]"; exit 2 ;;
+esac

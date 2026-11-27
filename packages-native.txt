@@ -84,12 +84,14 @@ otf-monaspace-nerd
 papirus-icon-theme
 perl-image-exiftool
 plasma-browser-integration
+plymouth
 power-profiles-daemon
 protonup-qt-bin
 ptyxis
 pwnedornot
 qemu-desktop
 qt6-multimedia-ffmpeg
+reflector
 sane
 sddm
 sddm-astronaut-theme

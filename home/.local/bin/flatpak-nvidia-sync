@@ -1,0 +1,21 @@
+#!/bin/bash
+# Keeps the user Flatpak Nvidia driver (GL.nvidia-X-Y-Z) matching the system nvidia-utils.
+# Without it Flatpak games (Sober) silently fall back to Intel graphics (2026-11-25: 140 fps -> 30).
+# Started by /etc/pacman.d/hooks/95-flatpak-nvidia.hook after nvidia-utils updates, and at login.
+ver=$(pacman -Q nvidia-utils 2>/dev/null | awk '{print $2}' | cut -d- -f1)
+[[ -n "$ver" ]] || exit 0
+want="org.freedesktop.Platform.GL.nvidia-${ver//./-}"
+have=$(flatpak list --user --runtime --columns=application | grep -E '^org\.freedesktop\.Platform\.GL(32)?\.nvidia-')
+note() { notify-send -a "Flatpak" -i nvidia "$1" "$2" 2>/dev/null; echo "$1: $2"; }
+if ! grep -qx "$want" <<<"$have"; then
+    for i in $(seq 30); do curl -fsI --max-time 5 https://dl.flathub.org >/dev/null && break; sleep 10; done
+    if flatpak install --user -y --noninteractive flathub "$want"; then
+        note "Flatpak Nvidia driver updated" "Now ${ver}. Sober and other Flatpak games use the RTX again."
+    else
+        note "Flatpak Nvidia driver update FAILED" "Run: flatpak install --user flathub $want"
+        exit 1
+    fi
+fi
+for old in $(grep -vx "$want" <<<"$have" | grep -v 'GL32'); do
+    flatpak uninstall --user -y --noninteractive "$old" && echo "removed $old"
+done

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# phone-ping "message" (2026-11-24): buzz the TECNO phone with a notification over KDE Connect (ping with text).
+# Used by pw (a terminal command waits / finishes) and the Claude Code Notification hook. If the phone isn't
+# reachable, falls back to a desktop popup so the message isn't lost.
+ID=9a477030466741df94bd562f6ef1a52c   # TECNO SPARK 30 Pro in KDE Connect
+msg=${*:-"$(cat /etc/hostname) needs you"}
+if kdeconnect-cli -d "$ID" --ping-msg "$msg" >/dev/null 2>&1; then
+    exit 0
+fi
+kdeconnect-cli --refresh >/dev/null 2>&1; sleep 2
+kdeconnect-cli -d "$ID" --ping-msg "$msg" >/dev/null 2>&1 || notify-send -a Phone "Phone not reachable" "$msg"

@@ -4,7 +4,8 @@ After=graphical-session.target
 
 [Service]
 ExecStart=%h/.local/bin/phnet-watch
-Restart=no
+Restart=always
+RestartSec=10
 
 [Install]
 WantedBy=graphical-session.target

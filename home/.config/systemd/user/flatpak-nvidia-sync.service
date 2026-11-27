@@ -1,0 +1,11 @@
+[Unit]
+Description=Match the Flatpak Nvidia driver to the system driver
+After=graphical-session.target network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/flatpak-nvidia-sync
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=graphical-session.target

@@ -2,6 +2,7 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.services
+import Quickshell
 import Quickshell.Services.UPower
 import QtQuick
 import QtQuick.Layouts
@@ -19,6 +20,14 @@ MouseArea {
     implicitHeight: Appearance.sizes.barHeight
 
     hoverEnabled: !Config.options.bar.tooltips.clickToShow
+    // Charge mode (2026-11-24, ~/.local/bin/charge-mode): left-click = Standard <-> Fast (both to 100%), right-click = Long Life (~80%)
+    cursorShape: Qt.PointingHandCursor
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
+    onClicked: mouse => {
+        Quickshell.execDetached(["env", "SRC=bar-click", Quickshell.env("HOME") + "/.local/bin/charge-mode", mouse.button === Qt.RightButton ? "long" : "toggle100"]);
+        modeRefresh.restart()
+    }
+    Timer { id: modeRefresh; interval: 500; onTriggered: batteryPopup.chargeFile.reload() }  // popup shows the new mode right away
 
     ClippedProgressBar {
         id: batteryProgress

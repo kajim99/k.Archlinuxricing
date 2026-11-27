@@ -167,6 +167,15 @@ function tools --description 'Show useful shortcuts for z, fzf, yazi, fd, bat, f
             'arduino-ide'       'Arduino IDE (runs under XWayland so it opens)' \
             'phonebox-restart'  'restart the phone desk panel (see the phonebox section)' \
             'phnet on|off'      'phone USB ethernet + notifications (see the phone section)' \
+            'pw <command>'      'run it; phone buzzes when it waits for you + when done' \
+            'phone-ping <text>' 'buzz the phone with a message (KDE Connect)' \
+            'pw-attach <PID>'   'same as pw for a command that is already running' \
+            'upsize'            'how many GB the next update is + time on hotspot vs ethernet' \
+            'charge-mode <m>'   'battery: long (~80%) / standard (100%) / fast / cycle / get' \
+            'battery-log'       'service: logs battery drain per power mode (feeds the battery hover popup)' \
+            'flatpak-nvidia-sync' 'match the Flatpak Nvidia driver to the system one (Sober on the RTX); runs at login' \
+            'phone-tether'      'service: phone USB ethernet on plug-in (started at login)' \
+            'Click battery icon' 'top bar: cycle the charge mode (hover shows it)' \
             'phbx'              'PhoneBox back on on the phone' \
             'qs ipc -c ii call notifications dnd true|false' '' \
             ''                  'Do Not Disturb on / off' \

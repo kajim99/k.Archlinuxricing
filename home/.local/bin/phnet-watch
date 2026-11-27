@@ -1,26 +1,40 @@
 #!/usr/bin/env bash
-# phnet-watch (2026-11-23): runs "phnet on" once each time the TECNO phone is plugged in (user service phnet-watch).
-# Only the phone is touched, never the tablet (tethering on the tablet made its USB flap, 2026-11-20).
-# A manual "phnet off" sticks until the phone is unplugged ($XDG_RUNTIME_DIR/phnet-manual-off, made by phnet off).
-# If switching USB mode knocks the phone off adb, it notifies and stops until next login.
+# phnet-watch (2026-11-23, made self-healing 2026-11-24): keeps the TECNO phone's USB ethernet + KDE Connect
+# notifications working (user service phnet-watch). The phone's cable drops often, so it never gives up:
+#  - each plug-in: "phnet on" (once per plug), unless you ran "phnet off" ($XDG_RUNTIME_DIR/phnet-manual-off,
+#    cleared when the phone is unplugged)
+#  - every 3 min while plugged in: if KDE Connect can't reach the phone, re-link it (restart the PC daemon's view
+#    and the phone app) — quietly, no popups.
+# Only the phone is touched.
 PHONE=130243753D002363
+KDEID=9a477030466741df94bd562f6ef1a52c
+APP=org.kde.kdeconnect_tp
 FLAG=$XDG_RUNTIME_DIR/phnet-manual-off
 plugged() { grep -qx "$PHONE" /sys/bus/usb/devices/*/serial 2>/dev/null; }
 online() { adb devices 2>/dev/null | grep -q "^$PHONE[[:space:]]*device"; }
+reachable() { kdeconnect-cli -a --id-only 2>/dev/null | grep -q "$KDEID"; }
+relink() {
+    kdeconnect-cli --refresh >/dev/null 2>&1; sleep 5; reachable && return
+    adb -s "$PHONE" shell am force-stop "$APP" >/dev/null 2>&1
+    adb -s "$PHONE" shell monkey -p "$APP" 1 >/dev/null 2>&1; sleep 2
+    adb -s "$PHONE" shell am start -n net.oxog.phonebox.deskpanel/.MainActivity >/dev/null 2>&1  # PhoneBox back on top
+    sleep 3; kdeconnect-cli --refresh >/dev/null 2>&1
+}
 
-done_this_plug=""
+done_this_plug="" check=0
 while true; do
     if ! plugged; then
         done_this_plug=""; rm -f "$FLAG"
-    elif [ -z "$done_this_plug" ] && online; then
-        done_this_plug=1
-        if [ ! -e "$FLAG" ]; then
-            "$HOME/.local/bin/phnet" on >/dev/null 2>&1
-            sleep 20
-            if plugged && ! online; then
-                notify-send -a Phone -u critical "phnet: phone dropped off adb" "Turn USB debugging off and on. Auto ethernet is paused until next login."
-                exit 0
-            fi
+    elif online; then
+        if [ -z "$done_this_plug" ]; then
+            done_this_plug=1
+            [ -e "$FLAG" ] || "$HOME/.local/bin/phnet" on >/dev/null 2>&1
+            sleep 10; relink; check=0
+        fi
+        check=$((check + 5))
+        if [ $check -ge 180 ]; then  # every 3 min
+            check=0
+            [ -e "$FLAG" ] || reachable || relink
         fi
     fi
     sleep 5

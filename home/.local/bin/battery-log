@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+# battery-log (2026-11-24, user service battery-log): measures YOUR real battery drain. Every 60 s while the laptop
+# runs on battery it records the draw (BAT1 power_now) and the power mode (power-mode get) to
+# ~/.local/state/battery-drain.log (last 30 days kept), and writes ~/.local/state/battery-drain.json:
+#   {"full_wh": 53.78, "modes": {"saver": {"watts": 12.9, "minutes": 140}, ...}}  (median watts, minutes measured)
+# The top-bar battery hover popup turns that into "time on a full charge" per power mode (needs >= 10 minutes).
+import json, os, statistics, subprocess, time
+
+B = "/sys/class/power_supply/BAT1/"
+STATE = os.path.expanduser("~/.local/state/")
+LOG, OUT = STATE + "battery-drain.log", STATE + "battery-drain.json"
+
+def read(f):
+    try:
+        return open(B + f).read().strip()
+    except OSError:
+        return ""
+
+def summary():
+    cut, per = time.time() - 30 * 86400, {}
+    keep = []
+    if os.path.exists(LOG):
+        for line in open(LOG):
+            try:
+                t, mode, w = line.split()
+                if float(t) >= cut:
+                    keep.append(line); per.setdefault(mode, []).append(float(w))
+            except ValueError:
+                pass
+        with open(LOG + ".tmp", "w") as f:
+            f.writelines(keep)
+        os.replace(LOG + ".tmp", LOG)
+    full = int(read("energy_full") or 0) / 1e6
+    data = {"full_wh": round(full, 2), "updated": int(time.time()),
+            "modes": {m: {"watts": round(statistics.median(v), 1), "minutes": len(v)} for m, v in per.items()}}
+    with open(OUT + ".tmp", "w") as f:
+        json.dump(data, f)
+    os.replace(OUT + ".tmp", OUT)
+
+def charge_mode():
+    import re
+    m = re.search(r"\[([^\]]+)\]", read("charge_types"))
+    return m.group(1) if m else ""
+
+summary()
+last_mode = charge_mode()
+while True:
+    # log charge-mode changes not made by charge-mode itself (to catch anything else switching it), 2026-11-24
+    mode_now = charge_mode()
+    if mode_now and mode_now != last_mode:
+        clog = STATE + "charge-mode.log"
+        tail = open(clog).read().splitlines()[-1:] if os.path.exists(clog) else []
+        if not (tail and tail[0].endswith(f"-> {mode_now} (bar-click)") or tail and f"-> {mode_now} (" in tail[0]):
+            with open(clog, "a") as f:
+                f.write(time.strftime("%Y-%m-%d %H:%M:%S") + f" {last_mode} -> {mode_now} (OUTSIDE charge-mode!)\n")
+        last_mode = mode_now
+    if read("status") == "Discharging":
+        w = int(read("power_now") or 0) / 1e6
+        if w > 1:
+            mode = subprocess.run([os.path.expanduser("~/.local/bin/power-mode"), "get"], capture_output=True, text=True).stdout.strip() or "unknown"
+            with open(LOG, "a") as f:
+                f.write(f"{int(time.time())} {mode} {w:.2f}\n")
+            summary()
+    time.sleep(60)

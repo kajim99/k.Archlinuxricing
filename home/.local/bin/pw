@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# pw <command...> (2026-11-24, "phone watch"): runs the command normally in this terminal and buzzes the phone
+# (phone-ping) when it stops at a question / password prompt for 15 s, and again when it finishes (OK / failed).
+# e.g.  pw yay -Syu      pw sudo pacman -Syu
+# The output is recorded with script(1) only to read the prompt line; the log is deleted afterwards.
+[ $# -eq 0 ] && { echo "usage: pw <command...>   (buzzes the phone when it waits for you or finishes)"; exit 2; }
+# system updates (yay / pacman / flatpak with an upgrade flag): show the download size first and ask (2026-11-24)
+if [[ " $* " =~ (^|[[:space:]])(yay|pacman|sudo\ pacman|flatpak)[[:space:]] ]] && [[ " $* " =~ (-S[a-z]*u|-Syu|-Su|[[:space:]]update) ]]; then
+    "$HOME/.local/bin/upsize"
+    read -r -p "Start the update? [Y/n] " ok
+    [[ $ok =~ ^[Nn] ]] && { echo "Cancelled."; exit 0; }
+fi
+log=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/pw.XXXXXX")
+name=$(basename "$1")
+start=$(date +%s)
+
+watcher() {
+    local last=-1 still=0 told=0 size line
+    while sleep 3; do
+        size=$(stat -c %s "$log" 2>/dev/null) || return
+        if [ "$size" = "$last" ]; then still=$((still + 3)); else still=0; told=0; last=$size; fi
+        [ $still -ge 15 ] && [ $told -eq 0 ] || continue
+        # last non-empty output line, colors stripped
+        line=$(tail -c 2000 "$log" | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\r/\n/g' | grep -v '^[[:space:]]*$' | tail -1 | cut -c1-120)
+        if echo "$line" | grep -qiE '\?|\[y/n\]|\[Y/n\]|password|:[[:space:]]*$|proceed|enter a number|exclude|==>'; then
+            "$HOME/.local/bin/phone-ping" "$name is waiting for you: $line"
+            told=1
+        fi
+    done
+}
+watcher & wpid=$!
+
+script -qefc "$(printf '%q ' "$@")" "$log"
+rc=$?
+kill "$wpid" 2>/dev/null
+mins=$(( ($(date +%s) - start + 59) / 60 ))
+if [ $rc -eq 0 ]; then "$HOME/.local/bin/phone-ping" "$name finished OK ($mins min)"
+else "$HOME/.local/bin/phone-ping" "$name FAILED (exit $rc, $mins min)"; fi
+rm -f "$log"
+exit $rc

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# upsize (2026-11-24): how big the next update is, before you run it. Repo packages: download size from a fresh
+# package list (checkupdates' own database, so the real one isn't touched); AUR: count only (built on this PC);
+# Flatpak: download sizes. Time estimate from the current connection: phone hotspot (mobile data) ~2 MB/s,
+# ethernet ~12 MB/s, other Wi-Fi ~6 MB/s (rough). Used by /H-doctor and by `pw yay ...`.
+DB=${TMPDIR:-/tmp}/checkup-db-${UID}
+pk=$(checkupdates --nocolor 2>/dev/null | awk '{print $1}')
+n=$(printf '%s\n' $pk | grep -c .)
+repo_mb=0
+if [ "$n" -gt 0 ]; then
+    repo_mb=$(pacman -Si --dbpath "$DB" $pk 2>/dev/null | awk -F': ' '/^Download Size/{split($2,a," "); v=a[1]; u=a[2];
+        if (u=="KiB") v/=1024; else if (u=="GiB") v*=1024; else if (u=="B") v/=1048576; s+=v} END {printf "%d", s}')
+fi
+aur=$(yay -Qua 2>/dev/null | grep -c .)
+flat_mb=$(flatpak remote-ls --updates --columns=download-size 2>/dev/null | awk '{v=$1; u=$2; if (u=="kB") v/=1024; else if (u=="GB") v*=1024; else if (u=="bytes") v/=1048576; s+=v} END {printf "%d", s}')
+total=$((repo_mb + flat_mb))
+
+dev=$(ip route show default | awk '{print $5; exit}')
+gw=$(ip route show default | awk '{print $3; exit}')
+if [[ $dev == wl* ]] && adb -s 130243753D002363 shell ip -4 addr show ap0 2>/dev/null | grep -q "inet $gw/"; then
+    net="phone hotspot (mobile data)"; speed=2
+elif [[ $dev == en* ]]; then net="ethernet"; speed=12
+else net="Wi-Fi ($dev)"; speed=6; fi
+mins=$(( (total / speed + 59) / 60 ))
+
+printf 'Update size\n'
+printf '  system:  %4d packages  %6.2f GB\n' "$n" "$(echo "$repo_mb/1024" | bc -l)"
+printf '  AUR:     %4d packages  (built on this PC, size unknown)\n' "$aur"
+printf '  Flatpak:                %6.2f GB\n' "$(echo "$flat_mb/1024" | bc -l)"
+printf '  total download:         %6.2f GB\n' "$(echo "$total/1024" | bc -l)"
+printf 'On %s: about %d min to download (~%d MB/s). Ethernet would be ~%d min.\n' "$net" "$mins" "$speed" $(( (total / 12 + 59) / 60 ))
+[ "$speed" = 2 ] && [ "$total" -gt 0 ] && echo "Heads up: that is $(echo "$total/1024" | bc -l | cut -c1-4) GB of mobile data."
+exit 0

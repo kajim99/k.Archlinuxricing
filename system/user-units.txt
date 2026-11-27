@@ -1,5 +1,7 @@
 autofile.path
 move-spotify-lyrics.path
+battery-log.service
+flatpak-nvidia-sync.service
 phnet-watch.service
 wireplumber.service
 xdg-user-dirs.service

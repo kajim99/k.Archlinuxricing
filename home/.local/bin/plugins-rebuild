@@ -1,7 +1,7 @@
 #!/bin/bash
 # Rebuilds the Hyprland plugins against the installed Hyprland (needed after Hyprland updates),
 # installs them to ~/.local/share/hypr-plugins and loads them.
-#   hypr-cube  ~/Projects/Cloned/hypr-cube              (branch port-0.57, patched locally)
+#   (hypr-cube was dropped 2026-11-24 at the user's request; source kept in ~/Projects/Cloned/hypr-cube)
 #   hyprbars   ~/Projects/Cloned/hyprland-plugins/hyprbars (official; `git pull` first if it fails)
 set -e
 running=$(hyprctl version -j | jq -r .commit)
@@ -12,10 +12,10 @@ if [[ "$running" != "$installed" ]]; then
     exit 1
 fi
 DEST=~/.local/share/hypr-plugins
-for src in ~/Projects/Cloned/hypr-cube ~/Projects/Cloned/hyprland-plugins/hyprbars; do
-    name=$(basename "$src"); [[ $name == hyprbars ]] || name=hypr-cube
+for src in ~/Projects/Cloned/hyprland-plugins/hyprbars; do
+    name=$(basename "$src")
     echo "Building $name for Hyprland $(hyprctl version -j | jq -r .version)..."
-    (cd "$src" && make all >/tmp/$name-build.log 2>&1) || { echo "  $name build failed. Log: /tmp/$name-build.log"; continue; }
+    (cd "$src" && make clean >/dev/null 2>&1; make all >/tmp/$name-build.log 2>&1) || { echo "  $name build failed. Log: /tmp/$name-build.log"; continue; }
     # Never write over a loaded .so (that crashed Hyprland once): copy under a temp name and
     # rename, so the loaded file keeps its own inode. The new build loads at the next login.
     cp "$src/$name.so" "$DEST/.$name.so.new" && mv -f "$DEST/.$name.so.new" "$DEST/$name.so"

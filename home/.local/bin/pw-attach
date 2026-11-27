@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# pw-attach <PID> [name] (2026-11-24): like pw, but for a command that is already running (e.g. a yay -Syu started
+# without pw). Root children (sudo/pacman) hide what they wait on, so it uses activity instead: when the whole process
+# tree uses no CPU for 20 s it is almost surely sitting at a prompt -> phone-ping (once, re-armed when it gets busy
+# again). Pings again when the command ends. Run detached:  systemd-run --user pw-attach <PID> yay
+pid=$1; name=${2:-$(cat /proc/"$pid"/comm 2>/dev/null)}
+[ -d /proc/"$pid" ] || { echo "no process $pid"; exit 1; }
+start=$(date +%s)
+tree() { local p=$1; echo "$p"; for c in $(cat /proc/"$p"/task/*/children 2>/dev/null); do tree "$c"; done; }
+ticks() { local s=0 p; for p in $(tree "$pid"); do s=$((s + $(awk '{print $14 + $15}' /proc/"$p"/stat 2>/dev/null || echo 0))); done; echo $s; }
+
+last=$(ticks) idle=0 told=0
+while [ -d /proc/"$pid" ]; do
+    sleep 4
+    now=$(ticks)
+    if [ "$now" = "$last" ]; then idle=$((idle + 4)); else idle=0; told=0; last=$now; fi
+    if [ $idle -ge 20 ] && [ $told -eq 0 ]; then
+        "$HOME/.local/bin/phone-ping" "$name needs you: it's waiting at a prompt (no activity for 20 s)"
+        told=1
+    fi
+done
+"$HOME/.local/bin/phone-ping" "$name finished ($(( ($(date +%s) - start + 59) / 60 )) min). Next: reboot, then plugins-rebuild + spicetify apply"
