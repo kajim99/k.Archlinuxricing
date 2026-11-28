@@ -98,10 +98,12 @@ sddm
 sddm-astronaut-theme
 simple-scan
 spicetify-cli
+spiderfoot
 spotify
 steam
 sudo
 system-config-printer
+theharvester
 timeshift
 timeshift-autosnap
 ttf-liberation
